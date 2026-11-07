@@ -25,7 +25,12 @@ solo en la base en vivo.
   (`factory.acceso`, roles `admin` = la persona, `pc` = el publicador de la
   PC), porque el registro de Mi ropa es abierto. Quien no está en la lista no
   lee ni escribe nada. `0038` es la última que fija `pgrst.db_schemas`:
-  cualquier schema nuevo se suma ahí.
+  cualquier schema nuevo se suma ahí. `0038` trae el estado FINAL de las
+  policies de órdenes (reaplicarla sola no debilita nada); `0039` solo agrega
+  límites de tamaño. La cuenta `pc` NO se pre-carga: el admin la da de alta con
+  `factory.alta_pc(email)` (la ata al id del usuario; exige email confirmado).
+  **Requisito:** en Supabase Auth debe estar activo *Confirm email*; el
+  publicador y `setup.cmd` lo verifican y, si no, no habilitan órdenes.
   Prueba de las reglas de seguridad (contra un Postgres con las migraciones
   aplicadas y los objetos mínimos de Supabase; todo en una transacción que se
   deshace): `psql "$URL" -v ON_ERROR_STOP=1 -f supabase/tests/factory_rls.sql`.

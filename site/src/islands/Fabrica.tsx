@@ -66,18 +66,29 @@ export default function Fabrica() {
     if (porConfirmar) dialogoRef.current?.focus();
   }, [porConfirmar]);
 
+  const pedidoRef = useRef(0); // R6: número de pedido; una respuesta vieja no pisa a una más nueva
+  const hayDatosRef = useRef(false);
+  const realtimeOkRef = useRef(false);
+  const [refrescoFallo, setRefrescoFallo] = useState("");
+
   const cargar = useCallback(async () => {
+    const n = ++pedidoRef.current;
     const [h, e, ev, o] = await Promise.all([
       fab().from("heartbeat").select("*").eq("dispositivo", "pc").maybeSingle(),
       fab().from("estado").select("*"),
       fab().from("eventos").select("id,ts,nivel,tipo,proyecto,titulo").order("ts", { ascending: false }).limit(30),
       fab().from("ordenes").select("*").order("creada_at", { ascending: false }).limit(15),
     ]);
+    if (n !== pedidoRef.current) return;
     const fallo = h.error || e.error || ev.error || o.error;
     if (fallo) {
-      setError(fallo.message);
+      // R6: con datos ya cargados, un error pasajero no tira abajo el tablero: se avisa y se sigue mostrando lo último
+      if (hayDatosRef.current) setRefrescoFallo(fallo.message);
+      else setError(fallo.message);
       return;
     }
+    hayDatosRef.current = true;
+    setRefrescoFallo("");
     setError("");
     setLatido((h.data as Latido | null) ?? null);
     setEstado(Object.fromEntries(((e.data as FilaEstado[]) ?? []).map((f) => [f.clave, f])));
@@ -105,8 +116,18 @@ export default function Fabrica() {
     const canal = supabase
       .channel("factory-tablero")
       .on("postgres_changes", { event: "*", schema: "factory" }, () => void cargar())
-      .subscribe();
-    const tick = setInterval(() => setAhora(Date.now()), 15_000);
+      .subscribe((st) => {
+        realtimeOkRef.current = st === "SUBSCRIBED";
+      });
+    // R5: respaldo por consulta. Si el tiempo real no conecta (proxy, red móvil), sin esto el latido no se actualiza
+    // en pantalla y a los 90 s se vería "PC sin conexión" con la PC viva. Cada 15 s se recalcula el reloj; se vuelve a
+    // consultar cada 30 s si el tiempo real no está conectado, y cada 2 min aunque lo esté.
+    let vueltas = 0;
+    const tick = setInterval(() => {
+      setAhora(Date.now());
+      vueltas++;
+      if (document.visibilityState === "visible" && (vueltas % 8 === 0 || (!realtimeOkRef.current && vueltas % 2 === 0))) void cargar();
+    }, 15_000);
     const visible = () => {
       if (document.visibilityState === "visible") {
         setAhora(Date.now());
@@ -216,6 +237,12 @@ export default function Fabrica() {
           )}
         </div>
       </div>
+
+      {refrescoFallo && (
+        <p role="alert" className="fab-sub fab-ancho">
+          No pude actualizar ({refrescoFallo}). Estás viendo lo último que se cargó.
+        </p>
+      )}
 
       {atencion.length > 0 && (
         <section className="card fab-atencion fab-ancho" aria-label="Atención">
