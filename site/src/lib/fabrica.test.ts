@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  ACCION_LABEL,
   UMBRAL_LATIDO_MS,
   antiguedadTexto,
   estadoVisible,
+  leerCola,
   leerCuotas,
   leerEjecutor,
+  leerPc,
   leerResumen,
+  nuevaOrden,
+  textoConfirmacion,
   modoConexion,
   porcentajeCuota,
   vigenciaHasta,
@@ -57,7 +62,7 @@ describe("lectura tolerante de lo que publica la PC", () => {
   it("resumen: ignora basura y completa faltantes", () => {
     expect(leerResumen(null)).toEqual([]);
     expect(leerResumen({ proyectos: [{ id: "a", nota: 90, pendientes: 2 }, { nombre: "sin id" }, 5] })).toEqual([
-      { id: "a", nombre: "a", nota: 90, pendientes: 2 },
+      { id: "a", nombre: "a", nota: 90, grado: null, pendientes: 2, sensibilidad: null },
     ]);
   });
   it("cuotas y porcentaje", () => {
@@ -65,10 +70,53 @@ describe("lectura tolerante de lo que publica la PC", () => {
     expect(c).toHaveLength(2);
     expect(porcentajeCuota(c[0])).toBe(25);
     expect(porcentajeCuota(c[1])).toBeNull();
-    expect(porcentajeCuota({ ruta: "z", usado: 300, limite: 100 })).toBe(100);
+    expect(porcentajeCuota({ ruta: "z", usado: 300, limite: 100, hasta: null })).toBe(100);
   });
   it("ejecutor: valores por defecto seguros", () => {
-    expect(leerEjecutor(undefined)).toEqual({ activo: false, pausadoProyectos: [], ultima: null });
+    expect(leerEjecutor(undefined)).toEqual({ activo: false, pausadoProyectos: [], proyectos: [], ultima: null });
     expect(leerEjecutor({ activo: true, ultima: { proyecto: "p", resultado: "done", cuando: "t" } }).ultima?.proyecto).toBe("p");
+  });
+});
+
+describe("órdenes nuevas", () => {
+  const EMAIL = "a@b.c";
+  it("arma la fila con vigencia según la acción", () => {
+    const r = nuevaOrden("pausar_ejecutor", { id: "ia-factory" }, AHORA, EMAIL);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.orden.params).toEqual({ id: "ia-factory" });
+      expect(Date.parse(r.orden.vigencia_hasta) - AHORA).toBe(15 * 60_000);
+      expect(r.orden.creada_por).toBe(EMAIL);
+    }
+  });
+  it("rechaza proyecto, tarea o acción inválidos", () => {
+    expect(nuevaOrden("pausar_ejecutor", { id: "../x" }, AHORA, EMAIL).ok).toBe(false);
+    expect(nuevaOrden("aprobar_item", { id: "p" }, AHORA, EMAIL).ok).toBe(false);
+    expect(nuevaOrden("aprobar_item", { id: "p", itemId: "zz; drop" }, AHORA, EMAIL).ok).toBe(false);
+    expect(nuevaOrden("borrar" as never, { id: "p" }, AHORA, EMAIL).ok).toBe(false);
+  });
+  it("aprobar lleva el itemId; reanudar exige confirmación y la incluye", () => {
+    const a = nuevaOrden("aprobar_item", { id: "p", itemId: "0e44896f" }, AHORA, null);
+    expect(a.ok && a.orden.params).toEqual({ id: "p", itemId: "0e44896f" });
+    expect(nuevaOrden("reanudar_ejecutor", { id: "p" }, AHORA, null).ok).toBe(false);
+    const r = nuevaOrden("reanudar_ejecutor", { id: "p", confirmado: true }, AHORA, null);
+    expect(r.ok && r.orden.params).toEqual({ id: "p", confirmado: true });
+  });
+  it("todas las acciones tienen texto y la confirmación avisa si la PC no está", () => {
+    for (const k of Object.keys(ACCION_LABEL)) expect(ACCION_LABEL[k as keyof typeof ACCION_LABEL].length).toBeGreaterThan(3);
+    expect(textoConfirmacion("pausar_ejecutor", "X", "vivo", null)).toMatch(/en segundos/);
+    expect(textoConfirmacion("pausar_ejecutor", "X", "apagada", null)).toMatch(/queda en cola/);
+    expect(textoConfirmacion("reanudar_ejecutor", "X", "vivo", "P3")).toMatch(/sensibles/);
+  });
+});
+
+describe("lectura de cola y estado de la PC", () => {
+  it("cola: descarta ids raros", () => {
+    expect(leerCola({ items: [{ id: "0e44896f", titulo: "t", sev: "alta", cat: "x" }, { id: "../x" }, null] })).toHaveLength(1);
+    expect(leerCola(undefined)).toEqual([]);
+  });
+  it("pc: tablero apagado por defecto, órdenes habilitadas salvo que diga que no", () => {
+    expect(leerPc(undefined)).toEqual({ tablero: false, ordenes: true });
+    expect(leerPc({ tablero: true, ordenes: false })).toEqual({ tablero: true, ordenes: false });
   });
 });

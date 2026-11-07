@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  ACCION_LABEL,
   ESTADO_ORDEN_LABEL,
   antiguedadTexto,
   estadoVisible,
+  leerCola,
   leerCuotas,
   leerEjecutor,
+  leerPc,
   leerResumen,
   modoConexion,
-  porcentajeCuota,
+  nuevaOrden,
+  textoConfirmacion,
+  type AccionOrden,
   type Latido,
   type Orden,
 } from "../lib/fabrica";
@@ -30,6 +35,14 @@ interface FilaEstado {
 
 const fab = () => supabase.schema("factory");
 
+interface PorConfirmar {
+  accion: AccionOrden;
+  id: string;
+  nombre: string;
+  sensibilidad: string | null;
+  itemId?: string;
+}
+
 export default function Fabrica() {
   const [sesion, setSesion] = useState<"cargando" | "no" | "si">("cargando");
   const [latido, setLatido] = useState<Latido | null>(null);
@@ -38,6 +51,10 @@ export default function Fabrica() {
   const [ordenes, setOrdenes] = useState<Orden[]>([]);
   const [error, setError] = useState("");
   const [ahora, setAhora] = useState(() => Date.now());
+  const [email, setEmail] = useState<string | null>(null);
+  const [porConfirmar, setPorConfirmar] = useState<PorConfirmar | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState("");
 
   const cargar = useCallback(async () => {
     const [h, e, ev, o] = await Promise.all([
@@ -64,6 +81,7 @@ export default function Fabrica() {
     supabase.auth.getSession().then(({ data }) => {
       if (cerrado) return;
       setSesion(data.session ? "si" : "no");
+      setEmail(data.session?.user.email ?? null);
       if (data.session) void cargar();
     });
     return () => {
@@ -93,6 +111,33 @@ export default function Fabrica() {
     };
   }, [sesion, cargar]);
 
+  async function confirmar() {
+    if (!porConfirmar) return;
+    const r = nuevaOrden(
+      porConfirmar.accion,
+      { id: porConfirmar.id, itemId: porConfirmar.itemId, confirmado: porConfirmar.accion === "reanudar_ejecutor" ? true : undefined },
+      Date.now(),
+      email,
+    );
+    if (!r.ok) {
+      setAviso(r.error);
+      setPorConfirmar(null);
+      return;
+    }
+    setEnviando(true);
+    const { error: e } = await fab().from("ordenes").insert(r.orden);
+    setEnviando(false);
+    setPorConfirmar(null);
+    setAviso(e ? `No se pudo crear la orden: ${e.message}` : "Orden creada.");
+    if (!e) void cargar();
+  }
+
+  async function cancelarOrden(id: string) {
+    const { error: e } = await fab().from("ordenes").update({ estado: "cancelada" }).eq("id", id).eq("estado", "pendiente");
+    setAviso(e ? `No se pudo cancelar: ${e.message}` : "Orden cancelada.");
+    if (!e) void cargar();
+  }
+
   if (!SUPABASE_CONFIGURADO) return <ConfigWarning />;
   if (sesion === "cargando") return <p>Cargando…</p>;
   if (sesion === "no") {
@@ -111,6 +156,11 @@ export default function Fabrica() {
   const cuotas = leerCuotas(estado["cuotas"]?.valor);
   const ejecutor = leerEjecutor(estado["ejecutor"]?.valor);
   const fotoDe = estado["resumen"]?.actualizado_at ?? latido?.visto_at ?? null;
+  const pc = leerPc(estado["pc"]?.valor);
+  const pedir = (p: PorConfirmar) => {
+    setAviso("");
+    setPorConfirmar(p);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -173,18 +223,101 @@ export default function Fabrica() {
         {cuotas.length === 0 ? (
           <p>Sin información.</p>
         ) : (
-          cuotas.map((c) => {
-            const pct = porcentajeCuota(c);
-            return (
-              <div className="barra-fila" key={c.ruta}>
-                <span className="barra-label">{c.ruta}</span>
-                <div className="barra-pista">
-                  <div className="barra-relleno" style={{ width: `${pct ?? 0}%` }} />
-                </div>
-                <span className="barra-valor">{pct === null ? "s/d" : `${pct}%`}</span>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+            {cuotas.map((c) => {
+              const enfriando = c.hasta && Date.parse(c.hasta) > ahora;
+              return (
+                <li key={c.ruta}>
+                  <strong>{c.ruta}</strong>
+                  {c.usado !== null ? ` — ${c.usado} uso${c.usado === 1 ? "" : "s"} hoy` : ""}
+                  {enfriando ? ` — sin cupo hasta ${new Date(c.hasta as string).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Acciones</h2>
+        {!pc.ordenes && <p>Las órdenes remotas están desactivadas en la PC.</p>}
+        {modo !== "vivo" && (
+          <p style={{ marginTop: 0 }}>
+            <small>La PC no está conectada: lo que pidas queda en cola y se ejecuta cuando vuelva. Si no vuelve a tiempo, la orden vence sola.</small>
+          </p>
+        )}
+        {modo === "vivo" && !pc.tablero && (
+          <p style={{ marginTop: 0 }}>
+            <small>El tablero de la PC está cerrado: las órdenes esperan hasta que lo abras.</small>
+          </p>
+        )}
+        {proyectos.length === 0 && <p>Todavía no hay proyectos publicados.</p>}
+        {proyectos.map((p) => {
+          const ej = ejecutor.proyectos.find((x) => x.id === p.id);
+          const cola = leerCola(estado[`cola:${p.id}`]?.valor);
+          const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
+          return (
+            <div key={p.id} style={{ borderTop: "1px solid var(--line, #0001)", paddingTop: "0.6rem", marginTop: "0.6rem" }}>
+              <strong>{p.nombre}</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", margin: "0.4rem 0" }}>
+                {ej?.habilitado && !ej.pausado ? (
+                  <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "pausar_ejecutor" })}>
+                    Pausar ejecutor
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "reanudar_ejecutor" })}>
+                    Reanudar ejecutor
+                  </button>
+                )}
+                <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "auditar" })}>
+                  Auditar ahora
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "encolar" })}>
+                  Armar plan
+                </button>
               </div>
-            );
-          })
+              {ej && (
+                <small>
+                  Ejecutor {ej.habilitado ? "habilitado" : "apagado"}
+                  {ej.pausado ? ` · pausado: ${ej.pausado}` : ""} · {ej.hechasHoy} hecha{ej.hechasHoy === 1 ? "" : "s"} hoy
+                  {ej.necesitaPersona ? ` · ${ej.necesitaPersona} necesitan a una persona` : ""}
+                </small>
+              )}
+              {cola.length > 0 && (
+                <ul style={{ margin: "0.4rem 0 0", paddingLeft: "1.1rem" }}>
+                  {cola.map((t) => (
+                    <li key={t.id}>
+                      {t.titulo} <small>({t.sev})</small>{" "}
+                      <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
+                        Aprobar
+                      </button>{" "}
+                      <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
+                        Descartar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+        {porConfirmar && (
+          <div role="alertdialog" aria-label="Confirmar orden" className="card" style={{ marginTop: "0.8rem", border: "2px solid var(--accent)" }}>
+            <p style={{ marginTop: 0 }}>{textoConfirmacion(porConfirmar.accion, porConfirmar.nombre, modo, porConfirmar.sensibilidad)}</p>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button type="button" className="btn btn-primary" disabled={enviando} onClick={() => void confirmar()}>
+                {enviando ? "Enviando…" : "Confirmar"}
+              </button>
+              <button type="button" className="btn btn-secondary" disabled={enviando} onClick={() => setPorConfirmar(null)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+        {aviso && (
+          <p role="status" style={{ marginBottom: 0 }}>
+            {aviso}
+          </p>
         )}
       </section>
 
@@ -196,8 +329,17 @@ export default function Fabrica() {
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
             {ordenes.map((o) => (
               <li key={o.id}>
-                {o.accion} — {ESTADO_ORDEN_LABEL[estadoVisible(o, ahora)]}
+                {ACCION_LABEL[o.accion] ?? o.accion}
+                {typeof o.params?.id === "string" ? ` · ${o.params.id}` : ""} — {ESTADO_ORDEN_LABEL[estadoVisible(o, ahora)]}
                 {o.resultado ? ` (${o.resultado})` : ""}
+                {estadoVisible(o, ahora) === "pendiente" && (
+                  <>
+                    {" "}
+                    <button type="button" className="btn btn-secondary" onClick={() => void cancelarOrden(o.id)}>
+                      Cancelar
+                    </button>
+                  </>
+                )}
               </li>
             ))}
           </ul>
