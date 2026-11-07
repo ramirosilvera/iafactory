@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ACCION_LABEL,
   ESTADO_ORDEN_LABEL,
+  accionEjecutor,
   antiguedadTexto,
+  calcularAtencion,
+  esErrorDePermiso,
+  fechaCorta,
+  nombreDe,
+  resultadoTexto,
   estadoVisible,
   leerCola,
   leerCuotas,
@@ -55,6 +61,10 @@ export default function Fabrica() {
   const [porConfirmar, setPorConfirmar] = useState<PorConfirmar | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const dialogoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (porConfirmar) dialogoRef.current?.focus();
+  }, [porConfirmar]);
 
   const cargar = useCallback(async () => {
     const [h, e, ev, o] = await Promise.all([
@@ -143,10 +153,28 @@ export default function Fabrica() {
   if (sesion === "no") {
     return (
       <div className="card empty-state">
-        <p>Necesitás entrar para ver el tablero.</p>
-        <a className="btn btn-primary" href={`${import.meta.env.BASE_URL}login/`}>
+        <p>Entrá con tu cuenta para ver la fábrica.</p>
+        <a className="btn btn-primary" href={`${import.meta.env.BASE_URL}login/?volver=fabrica/`}>
           Entrar
         </a>
+      </div>
+    );
+  }
+
+  if (error) {
+    const permiso = esErrorDePermiso(error);
+    return (
+      <div className="card" role="alert">
+        <h2 style={{ marginTop: 0 }}>{permiso ? "Esta cuenta no tiene acceso" : "No pude leer el tablero"}</h2>
+        <p>
+          {permiso
+            ? `La cuenta ${email ?? ""} no está habilitada para la fábrica. Hay que cargar su email en factory.acceso.`
+            : "Puede ser la conexión o que falte aplicar la migración 0038 en Supabase."}
+        </p>
+        <p className="fab-sub">Detalle técnico: {error}</p>
+        <button type="button" className="btn btn-primary" onClick={() => void cargar()}>
+          Reintentar
+        </button>
       </div>
     );
   }
@@ -157,80 +185,142 @@ export default function Fabrica() {
   const ejecutor = leerEjecutor(estado["ejecutor"]?.valor);
   const fotoDe = estado["resumen"]?.actualizado_at ?? latido?.visto_at ?? null;
   const pc = leerPc(estado["pc"]?.valor);
+  const atencion = calcularAtencion(proyectos, ejecutor, cuotas, eventos, ahora);
   const pedir = (p: PorConfirmar) => {
     setAviso("");
     setPorConfirmar(p);
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {error && (
-        <div className="card" role="alert">
-          <strong>No pude leer el tablero.</strong> {error}
-          <p style={{ margin: "0.5rem 0 0" }}>Si es la primera vez: falta aplicar la migración 0038 y cargar tu email en factory.acceso.</p>
+    <div className="fab-grid">
+      <div className={`card fab-estado fab-ancho ${modo}`} role="status" style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
+        <span className="fab-punto" aria-hidden="true" />
+        <div>
+          {modo === "vivo" && (
+            <>
+              <strong>PC en vivo</strong>
+              <div className="fab-sub">Último latido {antiguedadTexto(latido?.visto_at, ahora)}</div>
+            </>
+          )}
+          {modo === "apagada" && (
+            <>
+              <strong>PC sin conexión</strong>
+              <div className="fab-sub">Ves la última foto ({antiguedadTexto(fotoDe, ahora)}). Las órdenes quedan en cola hasta que vuelva.</div>
+            </>
+          )}
+          {modo === "sin_datos" && (
+            <>
+              <strong>Sin datos todavía</strong>
+              <div className="fab-sub">La PC aún no publicó nada.</div>
+            </>
+          )}
         </div>
-      )}
-
-      <div className="card" role="status">
-        {modo === "vivo" && (
-          <p style={{ margin: 0 }}>
-            <strong>● En vivo.</strong> La PC está conectada (último latido {antiguedadTexto(latido?.visto_at, ahora)}).
-          </p>
-        )}
-        {modo === "apagada" && (
-          <p style={{ margin: 0 }}>
-            <strong>○ PC sin conexión.</strong> Lo que ves es la última foto ({antiguedadTexto(fotoDe, ahora)}). Las órdenes quedan en cola
-            hasta que la PC vuelva.
-          </p>
-        )}
-        {modo === "sin_datos" && (
-          <p style={{ margin: 0 }}>
-            <strong>Sin datos todavía.</strong> La PC aún no publicó nada.
-          </p>
-        )}
       </div>
 
-      <section className="card">
-        <h2>Proyectos</h2>
-        {proyectos.length === 0 ? (
-          <p>Sin información.</p>
-        ) : (
-          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            {proyectos.map((p) => (
-              <li key={p.id}>
-                <strong>{p.nombre}</strong> — nota {p.nota ?? "s/d"}, {p.pendientes} pendiente{p.pendientes === 1 ? "" : "s"}
-              </li>
+      {atencion.length > 0 && (
+        <section className="card fab-atencion fab-ancho" aria-label="Atención">
+          <h2 style={{ margin: 0 }}>Para mirar primero</h2>
+          <ul>
+            {atencion.map((a, i) => (
+              <li key={i}>{a.texto}</li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="card">
-        <h2>Ejecutor</h2>
-        <p style={{ margin: 0 }}>
-          {ejecutor.activo ? "Activo" : "Inactivo"}
-          {ejecutor.pausadoProyectos.length ? ` · pausado en: ${ejecutor.pausadoProyectos.join(", ")}` : ""}
-        </p>
-        {ejecutor.ultima && (
-          <p style={{ margin: "0.25rem 0 0" }}>
-            Última corrida: {ejecutor.ultima.proyecto} → {ejecutor.ultima.resultado} ({antiguedadTexto(ejecutor.ultima.cuando, ahora)})
+      {!pc.ordenes && <p className="fab-sub fab-ancho">Las órdenes remotas están desactivadas en la PC.</p>}
+      {pc.ordenes && modo === "vivo" && !pc.tablero && <p className="fab-sub fab-ancho">El tablero de la PC está cerrado: las órdenes esperan hasta que lo abras.</p>}
+
+      {proyectos.length === 0 && (
+        <section className="card fab-ancho">
+          <p style={{ margin: 0 }}>Todavía no hay proyectos publicados.</p>
+        </section>
+      )}
+      {proyectos.map((p) => {
+        const ej = ejecutor.proyectos.find((x) => x.id === p.id);
+        const cola = leerCola(estado[`cola:${p.id}`]?.valor);
+        const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
+        const ae = accionEjecutor(ej);
+        return (
+          <section key={p.id} className="card fab-proyecto" aria-label={p.nombre}>
+            <div className="fab-cab">
+              <h3>{p.nombre}</h3>
+              <span className={`fab-nota ${p.grado ?? ""}`}>{p.nota !== null ? `${p.nota}${p.grado ? ` · ${p.grado}` : ""}` : "sin nota"}</span>
+            </div>
+            <div style={{ marginTop: "0.4rem" }}>
+              <span className="fab-chip">
+                {p.pendientes} pendiente{p.pendientes === 1 ? "" : "s"}
+              </span>
+              {ej && (
+                <span className={`fab-chip ${ej.pausado ? "mal" : ej.habilitado ? "ok" : ""}`}>
+                  {ej.pausado ? "ejecutor pausado" : ej.habilitado ? "ejecutor activo" : "ejecutor apagado"}
+                </span>
+              )}
+              {ej && <span className="fab-chip">{ej.hechasHoy} hecha{ej.hechasHoy === 1 ? "" : "s"} hoy</span>}
+            </div>
+            {ej?.pausado && <p className="fab-sub" style={{ margin: "0.4rem 0 0" }}>Motivo: {ej.pausado}</p>}
+            <div className="fab-botones">
+              <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: ae.accion })}>
+                {ae.label}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "auditar" })}>
+                Auditar ahora
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "encolar" })}>
+                Armar plan
+              </button>
+            </div>
+            {cola.length > 0 && (
+              <>
+                <div className="fab-sub">Tareas esperando</div>
+                <ul className="fab-filas">
+                  {cola.map((t) => (
+                    <li key={t.id}>
+                      <span>
+                        {t.titulo} <span className="fab-sub">({t.sev})</span>
+                      </span>
+                      <div className="fab-fila-acc">
+                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
+                          Aprobar
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
+                          Descartar
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        );
+      })}
+
+      {ejecutor.ultima && (
+        <section className="card fab-ancho">
+          <h2>Última corrida del ejecutor</h2>
+          <p style={{ margin: 0 }}>
+            {nombreDe(proyectos, ejecutor.ultima.proyecto)}: {resultadoTexto(ejecutor.ultima.resultado)}{" "}
+            <span className="fab-sub">({antiguedadTexto(ejecutor.ultima.cuando, ahora)})</span>
           </p>
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="card">
         <h2>Cuotas de modelos</h2>
         {cuotas.length === 0 ? (
           <p>Sin información.</p>
         ) : (
-          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
+          <ul className="fab-filas">
             {cuotas.map((c) => {
               const enfriando = c.hasta && Date.parse(c.hasta) > ahora;
               return (
                 <li key={c.ruta}>
                   <strong>{c.ruta}</strong>
-                  {c.usado !== null ? ` — ${c.usado} uso${c.usado === 1 ? "" : "s"} hoy` : ""}
-                  {enfriando ? ` — sin cupo hasta ${new Date(c.hasta as string).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                  <span className="fab-sub">
+                    {c.usado !== null ? `${c.usado} uso${c.usado === 1 ? "" : "s"} hoy` : "sin dato de uso"}
+                    {enfriando ? ` · sin cupo hasta ${fechaCorta(c.hasta as string)}` : ""}
+                  </span>
                 </li>
               );
             })}
@@ -239,129 +329,76 @@ export default function Fabrica() {
       </section>
 
       <section className="card">
-        <h2>Acciones</h2>
-        {!pc.ordenes && <p>Las órdenes remotas están desactivadas en la PC.</p>}
-        {modo !== "vivo" && (
-          <p style={{ marginTop: 0 }}>
-            <small>La PC no está conectada: lo que pidas queda en cola y se ejecuta cuando vuelva. Si no vuelve a tiempo, la orden vence sola.</small>
-          </p>
-        )}
-        {modo === "vivo" && !pc.tablero && (
-          <p style={{ marginTop: 0 }}>
-            <small>El tablero de la PC está cerrado: las órdenes esperan hasta que lo abras.</small>
-          </p>
-        )}
-        {proyectos.length === 0 && <p>Todavía no hay proyectos publicados.</p>}
-        {proyectos.map((p) => {
-          const ej = ejecutor.proyectos.find((x) => x.id === p.id);
-          const cola = leerCola(estado[`cola:${p.id}`]?.valor);
-          const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
-          return (
-            <div key={p.id} style={{ borderTop: "1px solid var(--line, #0001)", paddingTop: "0.6rem", marginTop: "0.6rem" }}>
-              <strong>{p.nombre}</strong>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", margin: "0.4rem 0" }}>
-                {ej?.habilitado && !ej.pausado ? (
-                  <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "pausar_ejecutor" })}>
-                    Pausar ejecutor
-                  </button>
-                ) : (
-                  <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "reanudar_ejecutor" })}>
-                    Reanudar ejecutor
-                  </button>
-                )}
-                <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "auditar" })}>
-                  Auditar ahora
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "encolar" })}>
-                  Armar plan
-                </button>
-              </div>
-              {ej && (
-                <small>
-                  Ejecutor {ej.habilitado ? "habilitado" : "apagado"}
-                  {ej.pausado ? ` · pausado: ${ej.pausado}` : ""} · {ej.hechasHoy} hecha{ej.hechasHoy === 1 ? "" : "s"} hoy
-                  {ej.necesitaPersona ? ` · ${ej.necesitaPersona} necesitan a una persona` : ""}
-                </small>
-              )}
-              {cola.length > 0 && (
-                <ul style={{ margin: "0.4rem 0 0", paddingLeft: "1.1rem" }}>
-                  {cola.map((t) => (
-                    <li key={t.id}>
-                      {t.titulo} <small>({t.sev})</small>{" "}
-                      <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
-                        Aprobar
-                      </button>{" "}
-                      <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
-                        Descartar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
-        {porConfirmar && (
-          <div role="alertdialog" aria-label="Confirmar orden" className="card" style={{ marginTop: "0.8rem", border: "2px solid var(--accent)" }}>
-            <p style={{ marginTop: 0 }}>{textoConfirmacion(porConfirmar.accion, porConfirmar.nombre, modo, porConfirmar.sensibilidad)}</p>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button type="button" className="btn btn-primary" disabled={enviando} onClick={() => void confirmar()}>
-                {enviando ? "Enviando…" : "Confirmar"}
-              </button>
-              <button type="button" className="btn btn-secondary" disabled={enviando} onClick={() => setPorConfirmar(null)}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
-        {aviso && (
-          <p role="status" style={{ marginBottom: 0 }}>
-            {aviso}
-          </p>
-        )}
-      </section>
-
-      <section className="card">
         <h2>Órdenes</h2>
         {ordenes.length === 0 ? (
           <p>No hay órdenes.</p>
         ) : (
-          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            {ordenes.map((o) => (
-              <li key={o.id}>
-                {ACCION_LABEL[o.accion] ?? o.accion}
-                {typeof o.params?.id === "string" ? ` · ${o.params.id}` : ""} — {ESTADO_ORDEN_LABEL[estadoVisible(o, ahora)]}
-                {o.resultado ? ` (${o.resultado})` : ""}
-                {estadoVisible(o, ahora) === "pendiente" && (
-                  <>
-                    {" "}
-                    <button type="button" className="btn btn-secondary" onClick={() => void cancelarOrden(o.id)}>
-                      Cancelar
-                    </button>
-                  </>
-                )}
+          <ul className="fab-filas">
+            {ordenes.map((o) => {
+              const ev = estadoVisible(o, ahora);
+              const proy = typeof o.params?.id === "string" ? nombreDe(proyectos, o.params.id) : null;
+              return (
+                <li key={o.id}>
+                  <span>
+                    <strong>{ACCION_LABEL[o.accion] ?? o.accion}</strong>
+                    {proy ? ` · ${proy}` : ""}
+                  </span>
+                  <span className="fab-sub">
+                    {ESTADO_ORDEN_LABEL[ev]}
+                    {o.resultado ? ` — ${o.resultado}` : ""}
+                  </span>
+                  {ev === "pendiente" && (
+                    <div className="fab-fila-acc">
+                      <button type="button" className="btn btn-secondary" onClick={() => void cancelarOrden(o.id)}>
+                        Cancelar orden
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="card fab-ancho">
+        <h2>Eventos recientes</h2>
+        {eventos.length === 0 ? (
+          <p>Sin eventos.</p>
+        ) : (
+          <ul className="fab-filas">
+            {eventos.map((e) => (
+              <li key={e.id}>
+                <span>
+                  {e.nivel === "error" ? "⛔ " : e.nivel === "aviso" ? "⚠️ " : ""}
+                  {e.proyecto ? `${nombreDe(proyectos, e.proyecto)} · ` : ""}
+                  {e.titulo}
+                </span>
+                <span className="fab-sub">{fechaCorta(e.ts)}</span>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="card">
-        <h2>Eventos recientes</h2>
-        {eventos.length === 0 ? (
-          <p>Sin eventos.</p>
-        ) : (
-          <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
-            {eventos.map((e) => (
-              <li key={e.id}>
-                {e.nivel === "error" ? "⛔ " : e.nivel === "aviso" ? "⚠️ " : ""}
-                {e.proyecto ? `[${e.proyecto}] ` : ""}
-                {e.titulo} <small>({antiguedadTexto(e.ts, ahora)})</small>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {porConfirmar && (
+        <div ref={dialogoRef} tabIndex={-1} role="alertdialog" aria-label="Confirmar orden" className="card fab-confirmar fab-ancho">
+          <p style={{ marginTop: 0 }}>{textoConfirmacion(porConfirmar.accion, porConfirmar.nombre, modo, porConfirmar.sensibilidad)}</p>
+          <div className="fab-botones" style={{ marginBottom: 0 }}>
+            <button type="button" className="btn btn-primary" disabled={enviando} onClick={() => void confirmar()}>
+              {enviando ? "Enviando…" : "Confirmar"}
+            </button>
+            <button type="button" className="btn btn-secondary" disabled={enviando} onClick={() => setPorConfirmar(null)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      {aviso && (
+        <p role="status" className="fab-sub fab-ancho">
+          {aviso}
+        </p>
+      )}
     </div>
   );
 }

@@ -244,3 +244,60 @@ export function textoConfirmacion(accion: AccionOrden, proyecto: string, modo: M
   const extra = accion === "reanudar_ejecutor" && sensibilidad === "P3" ? " Es un proyecto con datos sensibles (P3): vas a volver a habilitar el ejecutor automático, que modifica código." : "";
   return `${ACCION_LABEL[accion]} en ${proyecto}. ${cuando}${extra}`;
 }
+
+/* ───────────── presentación ───────────── */
+
+/** Resultados del ejecutor tal como los escribe el log (en inglés) → texto para la persona. */
+export const RESULTADO_LABEL: Record<string, string> = {
+  done: "corrigió",
+  failed: "revirtió (no pasó las pruebas)",
+  "needs-human": "necesita a una persona",
+  "model-down": "sin modelo disponible",
+  stale: "reintenta (el archivo cambió)",
+};
+export const resultadoTexto = (r: string): string => RESULTADO_LABEL[r] ?? (r || "sin dato");
+
+export const nombreDe = (proyectos: { id: string; nombre: string }[], id: string): string => proyectos.find((p) => p.id === id)?.nombre ?? id;
+
+/** Fecha corta y no ambigua: "dom 9 nov, 11:20". */
+export function fechaCorta(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "fecha desconocida";
+  return new Date(t).toLocaleString("es-AR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+export interface Atencion {
+  tipo: "pausado" | "persona" | "sin_cupo" | "error";
+  texto: string;
+}
+
+/** Lo que hay que mirar primero: ejecutor pausado, tareas que esperan a una persona, rutas sin cupo, errores recientes. */
+export function calcularAtencion(
+  proyectos: { id: string; nombre: string }[],
+  ejecutor: EstadoEjecutor,
+  cuotas: CuotaRuta[],
+  eventos: { nivel: string; ts: string; proyecto: string | null; titulo: string }[],
+  ahoraMs: number,
+): Atencion[] {
+  const out: Atencion[] = [];
+  for (const p of ejecutor.proyectos) {
+    const n = nombreDe(proyectos, p.id);
+    if (p.pausado) out.push({ tipo: "pausado", texto: `${n}: ejecutor pausado (${p.pausado})` });
+    if (p.necesitaPersona > 0) out.push({ tipo: "persona", texto: `${n}: ${p.necesitaPersona} tarea${p.necesitaPersona === 1 ? "" : "s"} necesita${p.necesitaPersona === 1 ? "" : "n"} a una persona` });
+  }
+  for (const c of cuotas) if (c.hasta && Date.parse(c.hasta) > ahoraMs) out.push({ tipo: "sin_cupo", texto: `${c.ruta}: sin cupo hasta ${fechaCorta(c.hasta)}` });
+  const reciente = eventos.find((e) => e.nivel === "error" && ahoraMs - Date.parse(e.ts) < 24 * 3_600_000);
+  if (reciente) out.push({ tipo: "error", texto: reciente.titulo });
+  return out;
+}
+
+/** Texto del botón de encendido/apagado del ejecutor según su estado real. */
+export function accionEjecutor(e: EjecutorProyecto | undefined): { accion: "pausar_ejecutor" | "reanudar_ejecutor"; label: string } {
+  if (e?.habilitado && !e.pausado) return { accion: "pausar_ejecutor", label: "Pausar ejecutor" };
+  return { accion: "reanudar_ejecutor", label: e?.pausado ? "Reanudar ejecutor" : "Encender ejecutor" };
+}
+
+/** ¿El error de lectura es de permisos (cuenta sin acceso) y no de conexión o de migración pendiente? */
+export function esErrorDePermiso(mensaje: string): boolean {
+  return /permission denied|42501|row-level security|not allowed|JWT/i.test(mensaje);
+}

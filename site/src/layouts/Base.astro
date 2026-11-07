@@ -4,9 +4,15 @@ import "../styles/global.css";
 interface Props {
   title: string;
   description?: string;
+  /** "fabrica" = tablero remoto de la IA Factory: su propia identidad (nombre, ícono, manifest, sin la barra de Mi ropa, sin indexar). */
+  marca?: "miropa" | "fabrica";
 }
 
-const { title, description = "Mi ropa — tu estilista que te explica por qué combina." } = Astro.props;
+const { title, marca = "miropa" } = Astro.props;
+const esFabrica = marca === "fabrica";
+const nombreApp = esFabrica ? "IA Factory" : "Mi ropa";
+const description = Astro.props.description ?? (esFabrica ? "Tablero remoto de la IA Factory." : "Mi ropa — tu estilista que te explica por qué combina.");
+const B = import.meta.env.BASE_URL;
 const path = Astro.url.pathname;
 // new URL(path, Astro.site), no concatenación de strings -- Astro.site ya
 // viene con "/" final (normalizado por Astro), así que sumarlo a mano con
@@ -22,21 +28,26 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>{title} · Mi ropa</title>
+    <title>{title} · {nombreApp}</title>
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#c8763f" />
+    <meta name="theme-color" content={esFabrica ? "#211a15" : "#c8763f"} />
+    {esFabrica && <meta name="robots" content="noindex, nofollow" />}
     <!-- Open Graph / Twitter Card -- antes no existían: compartir un link de
          la app (WhatsApp, Twitter, etc.) no mostraba ninguna preview, pese a
          que ya había un og-image.png en public/ sin usar en ningún lado. -->
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content={`${title} · Mi ropa`} />
-    <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:url" content={canonicalUrl} />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={`${title} · Mi ropa`} />
-    <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    {!esFabrica && (
+      <>
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={`${title} · Mi ropa`} />
+        <meta property="og:description" content={description} />
+        <meta property="og:image" content={ogImage} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${title} · Mi ropa`} />
+        <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={ogImage} />
+      </>
+    )}
     <!-- iOS 16.4+ ya honra display:standalone del manifest -- estos tags son
          compatibilidad para versiones previas y para fijar explícitamente el
          estilo de status bar. "default" (no black-translucent): con
@@ -47,15 +58,15 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Mi ropa" />
-    <link rel="manifest" href={`${import.meta.env.BASE_URL}manifest.webmanifest`} />
-    <link rel="icon" href={`${import.meta.env.BASE_URL}favicon-32.png`} />
-    <link rel="apple-touch-icon" href={`${import.meta.env.BASE_URL}apple-touch-icon.png`} />
+    <meta name="apple-mobile-web-app-title" content={esFabrica ? "Fábrica" : "Mi ropa"} />
+    <link rel="manifest" href={`${B}${esFabrica ? "fabrica.webmanifest" : "manifest.webmanifest"}`} />
+    <link rel="icon" href={`${B}${esFabrica ? "fabrica-favicon-32.png" : "favicon-32.png"}`} />
+    <link rel="apple-touch-icon" href={`${B}${esFabrica ? "fabrica-apple-touch-icon.png" : "apple-touch-icon.png"}`} />
   </head>
-  <body>
+  <body class={esFabrica ? "marca-fabrica" : undefined}>
     <slot />
     <div id="miropa-update-banner" class="update-banner" hidden>
-      <span>Hay una versión nueva de Mi ropa.</span>
+      <span>Hay una versión nueva de {nombreApp}.</span>
       <button type="button" onclick="location.reload()">Actualizar</button>
     </div>
     <!-- Pedido explícito del usuario: "que la sección de inicio sea
@@ -71,19 +82,21 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site).toString();
          5. Estadísticas -- una vista de análisis/reportes, al final a
             propósito (no es una acción del día a día como las anteriores).
          Placard se mudó de "/" a "/placard/" -- Outfits toma la home. -->
-    <nav class="tabbar">
-      <a href={import.meta.env.BASE_URL} class={path === import.meta.env.BASE_URL ? "active" : ""}>Outfits</a>
-      <a
-        href={`${import.meta.env.BASE_URL}placard/`}
-        class={path.includes("/placard/") || path.includes("/combinar/") ? "active" : ""}
-      >
-        Placard
-      </a>
-      <a href={`${import.meta.env.BASE_URL}prenda/nueva/`} class={path.includes("/prenda/") ? "active" : ""}>+ Prenda</a>
-      <a href={`${import.meta.env.BASE_URL}probar/`} class={path.includes("/probar/") ? "active" : ""}>Probar</a>
-      <a href={`${import.meta.env.BASE_URL}estadisticas/`} class={path.includes("/estadisticas/") ? "active" : ""}>Estadísticas</a>
-      <a href={`${import.meta.env.BASE_URL}fabrica/`} class={path.includes("/fabrica/") ? "active" : ""}>Fábrica</a>
-    </nav>
+    {!esFabrica && (
+      <nav class="tabbar">
+        <a href={import.meta.env.BASE_URL} class={path === import.meta.env.BASE_URL ? "active" : ""}>Outfits</a>
+        <a
+          href={`${import.meta.env.BASE_URL}placard/`}
+          class={path.includes("/placard/") || path.includes("/combinar/") ? "active" : ""}
+        >
+          Placard
+        </a>
+        <a href={`${import.meta.env.BASE_URL}prenda/nueva/`} class={path.includes("/prenda/") ? "active" : ""}>+ Prenda</a>
+        <a href={`${import.meta.env.BASE_URL}probar/`} class={path.includes("/probar/") ? "active" : ""}>Probar</a>
+        <a href={`${import.meta.env.BASE_URL}estadisticas/`} class={path.includes("/estadisticas/") ? "active" : ""}>Estadísticas</a>
+        <a href={`${import.meta.env.BASE_URL}fabrica/`} class={path.includes("/fabrica/") ? "active" : ""}>Fábrica</a>
+      </nav>
+    )}
     <script>
       if ("serviceWorker" in navigator) {
         // sw.js llama a skipWaiting()+clients.claim() sin pedir permiso, así

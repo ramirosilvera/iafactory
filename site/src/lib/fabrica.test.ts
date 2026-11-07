@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCION_LABEL,
+  accionEjecutor,
+  calcularAtencion,
+  esErrorDePermiso,
+  fechaCorta,
+  nombreDe,
+  resultadoTexto,
   UMBRAL_LATIDO_MS,
   antiguedadTexto,
   estadoVisible,
@@ -118,5 +124,42 @@ describe("lectura de cola y estado de la PC", () => {
   it("pc: tablero apagado por defecto, órdenes habilitadas salvo que diga que no", () => {
     expect(leerPc(undefined)).toEqual({ tablero: false, ordenes: true });
     expect(leerPc({ tablero: true, ordenes: false })).toEqual({ tablero: true, ordenes: false });
+  });
+});
+
+describe("presentación", () => {
+  const P = [{ id: "a", nombre: "Proyecto A" }];
+  it("traduce resultados del ejecutor y no inventa los desconocidos", () => {
+    expect(resultadoTexto("done")).toBe("corrigió");
+    expect(resultadoTexto("needs-human")).toMatch(/persona/);
+    expect(resultadoTexto("raro")).toBe("raro");
+    expect(resultadoTexto("")).toBe("sin dato");
+  });
+  it("nombre de proyecto o el id si no se conoce", () => {
+    expect(nombreDe(P, "a")).toBe("Proyecto A");
+    expect(nombreDe(P, "zz")).toBe("zz");
+  });
+  it("fecha corta tolera basura", () => {
+    expect(fechaCorta("no-fecha")).toBe("fecha desconocida");
+    expect(fechaCorta("2026-11-09T14:20:00Z")).toMatch(/9/);
+  });
+  it("atención: pausado, persona, sin cupo y error de las últimas 24 h", () => {
+    const ej = leerEjecutor({ proyectos: [{ id: "a", habilitado: true, pausado: "3 fallos", necesitaPersona: 2 }] });
+    const cuotas = [{ ruta: "x", usado: null, limite: null, hasta: new Date(AHORA + 3600_000).toISOString() }, { ruta: "y", usado: 1, limite: null, hasta: new Date(AHORA - 1000).toISOString() }];
+    const ev = [{ nivel: "error", ts: new Date(AHORA - 3600_000).toISOString(), proyecto: null, titulo: "Se cayó" }, { nivel: "error", ts: new Date(AHORA - 3 * 86_400_000).toISOString(), proyecto: null, titulo: "viejo" }];
+    const a = calcularAtencion(P, ej, cuotas, ev, AHORA);
+    expect(a.map((x) => x.tipo)).toEqual(["pausado", "persona", "sin_cupo", "error"]);
+    expect(a[0].texto).toMatch(/Proyecto A/);
+    expect(calcularAtencion(P, leerEjecutor(undefined), [], [], AHORA)).toEqual([]);
+  });
+  it("botón del ejecutor según el estado real", () => {
+    expect(accionEjecutor({ id: "a", habilitado: true, pausado: null, esperando: 0, hechasHoy: 0, necesitaPersona: 0, sensibilidad: null }).label).toBe("Pausar ejecutor");
+    expect(accionEjecutor({ id: "a", habilitado: true, pausado: "x", esperando: 0, hechasHoy: 0, necesitaPersona: 0, sensibilidad: null }).label).toBe("Reanudar ejecutor");
+    expect(accionEjecutor({ id: "a", habilitado: false, pausado: null, esperando: 0, hechasHoy: 0, necesitaPersona: 0, sensibilidad: null }).label).toBe("Encender ejecutor");
+    expect(accionEjecutor(undefined).accion).toBe("reanudar_ejecutor");
+  });
+  it("distingue error de permisos de otros", () => {
+    expect(esErrorDePermiso("permission denied for schema factory")).toBe(true);
+    expect(esErrorDePermiso("Failed to fetch")).toBe(false);
   });
 });
