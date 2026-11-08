@@ -188,7 +188,7 @@ describe("auditoría legible", () => {
   });
 });
 
-import { calcularPilares, saludGeneral } from "./fabrica";
+import { calcularPilares, leerPrivacidad, saludGeneral } from "./fabrica";
 describe("pilares", () => {
   const ej = { activo: true, pausadoProyectos: [], ultima: null, proyectos: [
     { id: "a", habilitado: true, pausado: null, esperando: 0, hechasHoy: 2, necesitaPersona: 0, sensibilidad: "P3" },
@@ -199,12 +199,30 @@ describe("pilares", () => {
     const r = calcularPilares(ps, ej, [{ ruta: "x", usado: 1, limite: null, hasta: null }], [], 0, Date.now());
     expect(r).toHaveLength(7);
     expect(r[0].valor).toBe("1/2");
-    expect(r[4].valor).toBe("1");
+    expect(r[4].valor).toBe("—");
+    expect(r[3].valor).toBe("—");
     expect(r[5].tono).toBe("ok");
     expect(r[6].valor).toBe("—");
   });
   it("salud general promedia notas", () => {
     expect(saludGeneral(ps)).toEqual({ nota: 70, grado: "C" });
     expect(saludGeneral([])).toBeNull();
+  });
+});
+
+describe("pilares medidos de verdad", () => {
+  const base = { cuando: "x", nota: 90, grado: "A", conteos: { alta: 0, media: 0, baja: 0, info: 0 }, tendencia: { delta: 0, nuevos: 0, resueltos: 0 }, total: 0, hallazgos: [] };
+  const ej = { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never;
+  it("5S cuenta hallazgos de orden y privacidad detecta exposición", () => {
+    const priv = leerPrivacidad({ leido: true, dias: 7, total: 4, enmascaradas: 2, locales: 1, expuestas: 1 });
+    const r = calcularPilares([], ej, [], [{ ...base, orden: 2 }, { ...base, orden: 0 }], 0, Date.now(), priv);
+    expect(r[3].valor).toBe("2");
+    expect(r[3].tono).toBe("warn");
+    expect(r[4].valor).toBe("3/4");
+    expect(r[4].tono).toBe("mal");
+  });
+  it("sin lectura del log, privacidad queda sin dato", () => {
+    expect(leerPrivacidad({ leido: false })).toBeNull();
+    expect(leerPrivacidad(undefined)).toBeNull();
   });
 });

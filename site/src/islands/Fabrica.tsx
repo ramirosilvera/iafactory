@@ -17,6 +17,7 @@ import {
   estadoVisible,
   leerCola,
   leerCuotas,
+  leerPrivacidad,
   leerEjecutor,
   leerPc,
   leerResumen,
@@ -218,7 +219,7 @@ export default function Fabrica() {
   };
 
   const auditorias = proyectos.map((p) => leerAuditoria(estado[`auditoria:${p.id}`]?.valor)).filter((x): x is NonNullable<typeof x> => x !== null);
-  const pilares = calcularPilares(proyectos, ejecutor, cuotas, auditorias, atencion.length, ahora);
+  const pilares = calcularPilares(proyectos, ejecutor, cuotas, auditorias, atencion.length, ahora, leerPrivacidad(estado["privacidad"]?.valor));
   const salud = saludGeneral(proyectos);
   const pendientesTotal = proyectos.reduce((n, p) => n + p.pendientes, 0);
   const hechasHoy = ejecutor.proyectos.reduce((n, e) => n + e.hechasHoy, 0);

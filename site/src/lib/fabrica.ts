@@ -319,6 +319,8 @@ export interface Auditoria {
   conteos: { alta: number; media: number; baja: number; info: number };
   tendencia: { delta: number | null; nuevos: number; resueltos: number };
   total: number;
+  /** hallazgos de orden y limpieza (pilar 5S); null si la PC todavía no lo publica */
+  orden: number | null;
   hallazgos: Hallazgo[];
 }
 
@@ -337,6 +339,7 @@ export function leerAuditoria(valor: unknown): Auditoria | null {
     conteos: { alta: n(c.alta), media: n(c.media), baja: n(c.baja), info: n(c.info) },
     tendencia: { delta: typeof t.delta === "number" ? t.delta : null, nuevos: n(t.nuevos), resueltos: n(t.resueltos) },
     total: n(o.total),
+    orden: typeof o.orden === "number" && Number.isFinite(o.orden) ? o.orden : null,
     hallazgos: arr(o.hallazgos)
       .map((h) => obj(h))
       .filter((h) => (SEVS as readonly string[]).includes(str(h.sev)))
@@ -369,6 +372,21 @@ export interface Pilar {
   tono: TonoPilar;
 }
 
+export interface Privacidad {
+  dias: number;
+  total: number;
+  enmascaradas: number;
+  locales: number;
+  expuestas: number;
+}
+/** Lee la medición de privacidad publicada por la PC; null si no existe o no se pudo leer el log. */
+export function leerPrivacidad(valor: unknown): Privacidad | null {
+  const o = obj(valor);
+  if (o.leido !== true) return null;
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
+  return { dias: n(o.dias) || 7, total: n(o.total), enmascaradas: n(o.enmascaradas), locales: n(o.locales), expuestas: n(o.expuestas) };
+}
+
 export function calcularPilares(
   proyectos: ResumenProyecto[],
   ejecutor: EstadoEjecutor,
@@ -376,6 +394,7 @@ export function calcularPilares(
   auditorias: Auditoria[],
   paraMirar: number,
   ahoraMs: number,
+  privacidad: Privacidad | null = null,
 ): Pilar[] {
   const ejs = ejecutor.proyectos;
   const activos = ejs.filter((e) => e.habilitado && !e.pausado).length;
@@ -387,6 +406,8 @@ export function calcularPilares(
   const resueltos = auditorias.reduce((s, a) => s + a.tendencia.resueltos, 0);
   const altas = auditorias.reduce((s, a) => s + a.conteos.alta, 0);
   const p3 = proyectos.filter((p) => p.sensibilidad === "P3").length;
+  const ordenConDato = auditorias.filter((a) => a.orden !== null);
+  const ordenTotal = ordenConDato.reduce((n, a) => n + (a.orden ?? 0), 0);
   const s = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
   return [
     {
@@ -409,15 +430,18 @@ export function calcularPilares(
     },
     {
       n: 4, clave: "cinco-s", nombre: "Metodología 5S", lema: "Orden y limpieza",
-      valor: "Siempre", unidad: "regla permanente",
-      detalle: "Cada proyecto mantiene su raíz limpia: respaldos con fecha y nada suelto.",
-      tono: "neutro",
+      valor: ordenConDato.length ? String(ordenTotal) : "—", unidad: ordenConDato.length ? s(ordenTotal, "hallazgo de orden abierto", "hallazgos de orden abiertos") : "esperando datos de la PC",
+      detalle: "Cuenta respaldos .bak y scripts sueltos en la raíz de cada proyecto, según la última auditoría.",
+      tono: !ordenConDato.length ? "neutro" : ordenTotal > 0 ? "warn" : "ok",
     },
     {
       n: 5, clave: "privacidad", nombre: "Privacidad P3", lema: "Datos enmascarados",
-      valor: String(p3), unidad: s(p3, "proyecto con datos sensibles", "proyectos con datos sensibles"),
-      detalle: "Lo sensible se queda en la PC o sale enmascarado y se des-enmascara al volver.",
-      tono: "neutro",
+      valor: privacidad ? (privacidad.total === 0 ? "0" : `${privacidad.total - privacidad.expuestas}/${privacidad.total}`) : "—",
+      unidad: privacidad ? (privacidad.total === 0 ? `consultas P3 en ${privacidad.dias} días` : `consultas P3 protegidas (${privacidad.dias} días)`) : "esperando datos de la PC",
+      detalle: privacidad
+        ? `${privacidad.enmascaradas} salieron enmascaradas · ${privacidad.locales} se quedaron en la PC · ${privacidad.expuestas} sin protección. ${p3} ${s(p3, "proyecto sensible", "proyectos sensibles")}.`
+        : `${p3} ${s(p3, "proyecto con datos sensibles", "proyectos con datos sensibles")}. Lo sensible se queda en la PC o sale enmascarado.`,
+      tono: !privacidad ? "neutro" : privacidad.expuestas > 0 ? "mal" : "ok",
     },
     {
       n: 6, clave: "experiencia", nombre: "Experiencia", lema: "Simple e intuitiva",
