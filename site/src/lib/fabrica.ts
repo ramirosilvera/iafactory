@@ -97,6 +97,12 @@ export interface ResumenProyecto {
 }
 export interface CuotaRuta {
   ruta: string;
+  /** proveedor (el uso y el enfriamiento se registran por proveedor); si no viene, la propia ruta */
+  proveedor: string;
+  /** roles de la fábrica que usan este modelo */
+  roles: string[];
+  /** ruta de pago (tiene tope diario declarado) */
+  pago?: boolean;
   usado: number | null;
   limite: number | null;
   /** si la ruta está en enfriamiento por cuota agotada, hasta cuándo (ISO) */
@@ -151,7 +157,30 @@ export function leerCuotas(valor: unknown): CuotaRuta[] {
   return arr(obj(valor).rutas)
     .map((r) => obj(r))
     .filter((r) => str(r.ruta))
-    .map((r) => ({ ruta: str(r.ruta), usado: num(r.usado), limite: num(r.limite), hasta: str(r.hasta) || null }));
+    .map((r) => ({
+      ruta: str(r.ruta),
+      proveedor: str(r.proveedor) || str(r.ruta),
+      roles: arr(r.roles).map(str).filter(Boolean),
+      pago: r.pago === true,
+      usado: num(r.usado),
+      limite: num(r.limite),
+      hasta: str(r.hasta) || null,
+    }));
+}
+
+/** Un renglón por proveedor (un enfriamiento de Antigravity es uno solo aunque tenga varios modelos). */
+export function proveedoresDe(cuotas: CuotaRuta[], ahoraMs: number): { nombre: string; modelos: number; enfriando: boolean; hasta: string | null }[] {
+  const m = new Map<string, { nombre: string; modelos: number; enfriando: boolean; hasta: string | null }>();
+  for (const c of cuotas) {
+    const e = m.get(c.proveedor) ?? { nombre: c.proveedor, modelos: 0, enfriando: false, hasta: null };
+    e.modelos += 1;
+    if (c.hasta && Date.parse(c.hasta) > ahoraMs) {
+      e.enfriando = true;
+      e.hasta = c.hasta;
+    }
+    m.set(c.proveedor, e);
+  }
+  return [...m.values()];
 }
 
 export function leerEjecutor(valor: unknown): EstadoEjecutor {
@@ -186,6 +215,11 @@ export function leerCola(valor: unknown): TareaCola[] {
     .map((i) => obj(i))
     .filter((i) => ID_ITEM.test(str(i.id)))
     .map((i) => ({ id: str(i.id), titulo: str(i.titulo), sev: str(i.sev), cat: str(i.cat) }));
+}
+
+/** Total real de tareas esperando (la foto publica solo las primeras 20). */
+export function leerColaTotal(valor: unknown): number {
+  return num(obj(valor).total) ?? leerCola(valor).length;
 }
 
 export function leerPc(valor: unknown): EstadoPc {
@@ -285,7 +319,7 @@ export function calcularAtencion(
     if (p.pausado) out.push({ tipo: "pausado", texto: `${n}: ejecutor pausado (${p.pausado})` });
     if (p.necesitaPersona > 0) out.push({ tipo: "persona", texto: `${n}: ${p.necesitaPersona} tarea${p.necesitaPersona === 1 ? "" : "s"} necesita${p.necesitaPersona === 1 ? "" : "n"} a una persona` });
   }
-  for (const c of cuotas) if (c.hasta && Date.parse(c.hasta) > ahoraMs) out.push({ tipo: "sin_cupo", texto: `${c.ruta}: sin cupo hasta ${fechaCorta(c.hasta)}` });
+  for (const pv of proveedoresDe(cuotas, ahoraMs)) if (pv.enfriando && pv.hasta) out.push({ tipo: "sin_cupo", texto: `${pv.nombre}: sin cupo hasta ${fechaCorta(pv.hasta)}` });
   const reciente = eventos.find((e) => e.nivel === "error" && ahoraMs - Date.parse(e.ts) < 24 * 3_600_000);
   if (reciente) out.push({ tipo: "error", texto: reciente.titulo });
   return out;
@@ -406,7 +440,8 @@ export function calcularPilares(
   const activos = ejs.filter((e) => e.habilitado && !e.pausado).length;
   const pausados = ejs.filter((e) => e.pausado).length;
   const hechas = ejs.reduce((s, e) => s + e.hechasHoy, 0);
-  const conCupo = cuotas.filter((c) => !(c.hasta && Date.parse(c.hasta) > ahoraMs)).length;
+  const provs = proveedoresDe(cuotas, ahoraMs);
+  const conCupo = provs.filter((x) => !x.enfriando).length;
   const delta = auditorias.reduce((s, a) => s + (a.tendencia.delta ?? 0), 0);
   const nuevos = auditorias.reduce((s, a) => s + a.tendencia.nuevos, 0);
   const resueltos = auditorias.reduce((s, a) => s + a.tendencia.resueltos, 0);
@@ -424,9 +459,9 @@ export function calcularPilares(
     },
     {
       n: 2, clave: "eficiencia", nombre: "Eficiencia", lema: "Costo cero",
-      valor: cuotas.length ? `${conCupo}/${cuotas.length}` : "—", unidad: "rutas con cupo",
+      valor: provs.length ? `${conCupo}/${provs.length}` : "—", unidad: "proveedores con cupo",
       detalle: "Primero rutas gratuitas; lo pago nunca es el camino por defecto.",
-      tono: cuotas.length === 0 ? "neutro" : conCupo === 0 ? "mal" : conCupo < cuotas.length ? "warn" : "ok",
+      tono: provs.length === 0 ? "neutro" : conCupo === 0 ? "mal" : conCupo < provs.length ? "warn" : "ok",
     },
     {
       n: 3, clave: "mejora", nombre: "Mejora continua", lema: "Medir antes de decidir",

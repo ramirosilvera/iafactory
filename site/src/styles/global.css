@@ -292,3 +292,10 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 }
 .app-marca strong { white-space: nowrap; }
 @media (max-width: 560px) { .pill-tiempo { display: none; } }
+
+.modelos { list-style: none; margin: 0; padding: 0; }
+.modelos li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.65rem 0; border-top: 1px solid var(--border); }
+.modelos li:first-child { border-top: 0; }
+.modelos li > div:first-child { display: grid; gap: 0.1rem; min-width: 0; word-break: break-word; }
+.modelos-der { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.modelos-der .fab-chip { margin: 0; }

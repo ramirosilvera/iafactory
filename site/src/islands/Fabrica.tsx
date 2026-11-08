@@ -17,6 +17,7 @@ import {
   resultadoTexto,
   estadoVisible,
   leerCola,
+  leerColaTotal,
   leerCuotas,
   leerPrivacidad,
   leerEjecutor,
@@ -290,12 +291,13 @@ export default function Fabrica() {
   const hechasHoy = ejecutor.proyectos.reduce((n, e) => n + e.hechasHoy, 0);
   const ordenesEnCola = ordenes.filter((o) => estadoVisible(o, ahora) === "pendiente").length;
   const CIRC = 2 * Math.PI * 52;
-  const paraAprobar = proyectos.reduce((n, p) => n + leerCola(estado[`cola:${p.id}`]?.valor).length, 0);
+  const paraAprobar = proyectos.reduce((n, p) => n + leerColaTotal(estado[`cola:${p.id}`]?.valor), 0);
 
   const acciones = (p: (typeof proyectos)[number]) => {
     const ej = ejecutor.proyectos.find((x) => x.id === p.id);
     const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
-    return { ej, base, ae: accionEjecutor(ej), cola: leerCola(estado[`cola:${p.id}`]?.valor) };
+    const cola = leerCola(estado[`cola:${p.id}`]?.valor);
+    return { ej, base, ae: accionEjecutor(ej), cola, totalCola: leerColaTotal(estado[`cola:${p.id}`]?.valor) };
   };
 
   return (
@@ -443,14 +445,14 @@ export default function Fabrica() {
             {proyectos.length === 0 && <p style={{ margin: 0 }}>Todavía no hay proyectos publicados.</p>}
             <ul className="acc-lista">
               {proyectos.map((p) => {
-                const { ej, base, ae, cola } = acciones(p);
+                const { ej, base, ae, cola, totalCola } = acciones(p);
                 return (
                   <li key={p.id}>
                     <div className="acc-cab">
                       <strong>{p.nombre}</strong>
                       <span className={`fab-nota ${p.grado ?? ""}`}>{p.nota !== null ? `${p.nota}${p.grado ? ` · ${p.grado}` : ""}` : "sin nota"}</span>
                       {ej?.pausado && <span className="fab-chip mal">pausado</span>}
-                      {cola.length > 0 && <button type="button" className="btn btn-primary btn-chico btn-aprobar" onClick={() => irA("proyectos")}>Aprobar {cola.length}</button>}
+                      {cola.length > 0 && <button type="button" className="btn btn-primary btn-chico btn-aprobar" onClick={() => irA("proyectos")}>Aprobar {totalCola}</button>}
                     </div>
                     <div className="fab-botones">
                       <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: ae.accion })}>{ae.label}</button>
@@ -499,6 +501,7 @@ export default function Fabrica() {
       {proyectos.map((p) => {
         const ej = ejecutor.proyectos.find((x) => x.id === p.id);
         const cola = leerCola(estado[`cola:${p.id}`]?.valor);
+        const totalCola = leerColaTotal(estado[`cola:${p.id}`]?.valor);
         const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
         const ae = accionEjecutor(ej);
         const aud = leerAuditoria(estado[`auditoria:${p.id}`]?.valor);
@@ -563,7 +566,7 @@ export default function Fabrica() {
             </div>
             {cola.length > 0 && (
               <>
-                <div className="fab-sub">Tareas esperando</div>
+                <div className="fab-sub">Tareas esperando{totalCola > cola.length ? ` (se muestran ${cola.length} de ${totalCola}; al aprobar o descartar aparecen las siguientes)` : ""}</div>
                 <ul className="fab-filas">
                   {cola.map((t) => (
                     <li key={t.id}>
@@ -593,6 +596,7 @@ export default function Fabrica() {
       {vista === "ordenes" && <div className="fab-grid">
       <section className="card fab-ancho">
         <h2>Órdenes</h2>
+        {ordenes.length >= 15 && <p className="fab-sub" style={{ marginTop: 0 }}>Se muestran las últimas 15.</p>}
         {ordenes.length === 0 ? (
           <p>No hay órdenes.</p>
         ) : (
@@ -651,6 +655,7 @@ export default function Fabrica() {
 
       <section className="card fab-ancho">
         <h2>Eventos recientes</h2>
+        <p className="fab-sub" style={{ marginTop: 0 }}>Del ejecutor y de las órdenes remotas, últimos {eventos.length >= 30 ? "30" : eventos.length}.</p>
         {eventos.length === 0 ? (
           <p>Sin eventos.</p>
         ) : (
@@ -674,24 +679,33 @@ export default function Fabrica() {
 
       {vista === "modelos" && <div className="fab-grid">
       <section className="card fab-ancho">
-        <h2>Cuotas de modelos</h2>
+        <h2>Modelos y cuotas</h2>
         {cuotas.length === 0 ? (
-          <p>Sin información.</p>
+          <p>Sin información todavía: la PC publica los modelos declarados en cuanto arranca.</p>
         ) : (
-          <ul className="fab-filas">
-            {cuotas.map((c) => {
-              const enfriando = c.hasta && Date.parse(c.hasta) > ahora;
-              return (
-                <li key={c.ruta}>
-                  <strong>{c.ruta}</strong>
-                  <span className="fab-sub">
-                    {c.usado !== null ? `${c.usado} uso${c.usado === 1 ? "" : "s"} hoy` : "sin dato de uso"}
-                    {enfriando ? ` · sin cupo hasta ${fechaCorta(c.hasta as string)}` : ""}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <p className="fab-sub" style={{ marginTop: 0 }}>
+              {cuotas.length} modelos de {new Set(cuotas.map((c) => c.proveedor)).size} proveedores. El uso y el enfriamiento se cuentan por proveedor, no por modelo.
+            </p>
+            <ul className="modelos">
+              {cuotas.map((c) => {
+                const enfriando = !!c.hasta && Date.parse(c.hasta) > ahora;
+                const local = /ollama|local/i.test(c.proveedor) || /:\d+k$/.test(c.ruta);
+                return (
+                  <li key={c.ruta}>
+                    <div>
+                      <strong>{c.ruta}{c.pago ? " · de pago" : ""}</strong>
+                      <span className="fab-sub">{c.roles.length ? `Roles: ${c.roles.join(", ")}` : "Sin rol asignado"}</span>
+                    </div>
+                    <div className="modelos-der">
+                      <span className="fab-sub">{c.usado !== null ? `${c.usado}${c.limite ? ` de ${c.limite}` : ""} uso${c.usado === 1 ? "" : "s"} hoy` : local ? "local" : "sin uso hoy"}</span>
+                      <span className={`fab-chip ${enfriando ? "mal" : "ok"}`}>{enfriando ? `sin cupo hasta ${fechaCorta(c.hasta as string)}` : local ? "sin límite" : "con cupo"}</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </section>
 
