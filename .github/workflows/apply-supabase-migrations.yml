@@ -1,7 +1,7 @@
 name: Aplicar migraciones Supabase
 
-# Aplica el schema-as-code de supabase/migrations/ contra el Postgres de
-# Supabase. Los archivos son idempotentes (create ... if not exists / create or
+# Aplica el schema-as-code de supabase/migrations/ (desde la 0038; las anteriores ya están aplicadas, ver DESDE más
+# abajo) contra el Postgres de Supabase. Los archivos son idempotentes (create ... if not exists / create or
 # replace / drop policy if exists), así que correrlos de nuevo es inofensivo.
 #
 # Necesita el secret SUPABASE_DB_URL (la cadena de conexión Postgres del
@@ -51,7 +51,15 @@ jobs:
           if [ ${#files[@]} -eq 0 ]; then
             echo "No hay migraciones que aplicar."; exit 0
           fi
+          # Las migraciones 0001-0037 ya están aplicadas en el proyecto real (se aplicaron una vez, a mano). Volver a
+          # correrlas NO es inofensivo: p. ej. 0012 vuelve a poner un check de texturas que los datos actuales
+          # (agregadas por migraciones posteriores) ya violan. Por eso solo se aplican las >= DESDE.
+          DESDE=38
           for f in $(printf '%s\n' "${files[@]}" | sort); do
+            n=$(basename "$f" | sed 's/_.*//')
+            if [ "$((10#$n))" -lt "$DESDE" ]; then
+              echo "== Salteo $f (ya aplicada) =="; continue
+            fi
             echo "== Aplicando $f =="
             psql "${{ secrets.SUPABASE_DB_URL }}" -v ON_ERROR_STOP=1 -f "$f"
           done
