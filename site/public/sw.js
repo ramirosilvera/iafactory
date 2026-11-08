@@ -1,23 +1,19 @@
 /*
- * Service worker mínimo de Mi ropa.
+ * Service worker mínimo del tablero de la IA Factory.
  *
- * Objetivo: hacer la app instalable (PWA) y dar un "app shell" offline, sin
- * arriesgar los datos del usuario (placard, auth, fotos), que viven en
- * Supabase y nunca deben servirse desde caché.
+ * Hace la app instalable (PWA) y da un "app shell" offline, sin arriesgar
+ * datos: los datos viven en Supabase y nunca se sirven desde caché.
  *
- *  - Navegaciones HTML -> network-first (online siempre ves lo último;
- *    offline cae al HTML cacheado).
- *  - Assets estáticos con hash (css/js/img/fuentes) -> stale-while-revalidate.
- *  - TODO lo demás -> passthrough puro (no se llama respondWith). Cubre
- *    cualquier request a Supabase (API REST, Auth, Storage) y cualquier
- *    origen cruzado.
+ *  - Navegaciones HTML -> network-first (offline cae al HTML cacheado).
+ *  - Assets estáticos con hash -> stale-while-revalidate.
+ *  - TODO lo demás (Supabase, otros orígenes) -> passthrough puro.
  */
 // v2: antes de este fix, una respuesta 404/5xx transitoria (ej. justo
 // después de un deploy, mientras GitHub Pages propaga los archivos nuevos)
 // podía quedar cacheada para siempre. Subir la versión fuerza a `activate`
 // (más abajo) a borrar cualquier caché vieja -- incluida una que ya tenga
 // un error de ese tipo pegado -- en vez de dejarlo ahí indefinidamente.
-const CACHE = "miropa-shell-v2";
+const CACHE = "iafactory-shell-v1";
 
 const STATIC_ASSET = /\.(css|js|mjs|png|svg|ico|webp|jpg|jpeg|woff2?)(\?|$)/i;
 
@@ -54,7 +50,7 @@ self.addEventListener("fetch", (event) => {
           if (res.ok) caches.open(CACHE).then((c) => c.put(request, res.clone()));
           return res;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match("/miropa/"))),
+        .catch(() => caches.match(request).then((r) => r || caches.match("/iafactory/"))),
     );
     return;
   }

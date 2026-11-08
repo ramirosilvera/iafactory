@@ -178,7 +178,7 @@ export default function Fabrica() {
     return (
       <div className="card empty-state">
         <p>Entrá con tu cuenta para ver la fábrica.</p>
-        <a className="btn btn-primary" href={`${import.meta.env.BASE_URL}login/?volver=fabrica/`}>
+        <a className="btn btn-primary" href={`${import.meta.env.BASE_URL}login/`}>
           Entrar
         </a>
       </div>

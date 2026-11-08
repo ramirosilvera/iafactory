@@ -29,7 +29,7 @@ export default function AuthForm() {
       if (modo === "signup" && !data.session) {
         // El proyecto tiene "confirmar email" activado -- la cuenta se creó
         // pero todavía no hay sesión. Avisar en vez de redirigir a un
-        // placard vacío que parece "no funcionó".
+        // tablero vacío que parece "no funcionó".
         setEstado("confirmar_email");
         return;
       }
@@ -37,7 +37,7 @@ export default function AuthForm() {
       window.location.href = destinoSeguro(new URLSearchParams(window.location.search).get("volver"), (import.meta.env.BASE_URL as string) || "/");
     } catch (e) {
       setEstado("error");
-      setError(e instanceof Error ? e.message : "Error de conexión con Mi ropa.");
+      setError(e instanceof Error ? e.message : "Error de conexión con IA Factory.");
     }
   }
 

@@ -4,7 +4,7 @@
 -- abre ningún puerto) y la app web lo muestra: en vivo cuando la PC está prendida, y la última foto cuando está apagada.
 -- Las órdenes se dejan en cola y la PC las toma cuando está disponible.
 --
--- SEGURIDAD: el registro de usuarios de Mi ropa es abierto, así que NINGUNA policy de este schema usa solo
+-- SEGURIDAD: el registro de usuarios del proyecto Supabase es abierto, así que NINGUNA policy de este schema usa solo
 -- "authenticated". El acceso sale de la tabla factory.acceso (email + rol) y exige además que el email del usuario esté
 -- CONFIRMADO en auth.users (si no, alguien podría registrarse con el email de otro). Roles:
 --   admin = la persona (web: lee todo, crea órdenes, cancela las pendientes)
