@@ -9,9 +9,7 @@ name: Deploy a GitHub Pages
 # SHA -- actualizarlo a mano cuando se quiera subir de versión.
 on:
   push:
-    # el repo no tiene "main" todavia -- deployar desde la rama que hoy es
-    # default branch, y desde main tambien por si se crea/renombra despues
-    branches: [main, claude/metricas-mundial-architecture-gqk5x6]
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
@@ -87,5 +85,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
-
-# trigger workflow indexing

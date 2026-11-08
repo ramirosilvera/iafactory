@@ -1,4 +1,2 @@
 User-agent: *
-Allow: /
-
-Sitemap: https://ramirosilvera.github.io/metricaslpf/sitemap.xml
+Disallow: /
