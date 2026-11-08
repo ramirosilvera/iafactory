@@ -220,3 +220,75 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
   .hero-kpis { grid-template-columns: repeat(2, 1fr); text-align: left; }
   h1 { font-size: 1.45rem; }
 }
+
+/* ---- Navegación (menú hamburguesa) y pantalla de inicio ejecutiva ---- */
+.app { display: flex; flex-direction: column; gap: 0.9rem; }
+.app-top { position: relative; }
+.btn-menu { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+.btn-menu:hover { border-color: var(--accent); }
+.btn-menu:focus-visible, .menu-panel button:focus-visible, .enlace:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+.menu-fondo { position: fixed; inset: 0; background: rgba(5, 8, 16, 0.55); z-index: 20; }
+.menu-panel { position: fixed; top: 0.75rem; right: 0.75rem; z-index: 30; width: min(320px, calc(100vw - 1.5rem)); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-elevada); padding: 0.5rem; }
+.menu-panel ul { list-style: none; margin: 0; padding: 0; }
+.menu-panel li button { width: 100%; min-height: 48px; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0 0.9rem; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
+.menu-panel li button:hover { background: var(--surface-2); }
+.menu-panel li button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-strong); font-weight: 600; }
+.menu-badge { min-width: 22px; padding: 0 0.4rem; text-align: center; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.75rem; line-height: 22px; }
+.menu-pie { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.9rem 0.4rem; border-top: 1px solid var(--border); margin-top: 0.4rem; word-break: break-all; }
+
+.hero-chico { padding: 0.9rem 1rem; gap: 0.75rem 1rem; }
+.hero-chico .hero-anillo { width: 92px; height: 92px; }
+.hero-chico .anillo-centro strong { font-size: 1.45rem; }
+.hero-chico h1 { font-size: 1.25rem; margin: 0; }
+.hero-chico .hero-kpis { gap: 0.5rem; }
+.hero-chico .hero-kpis > div { padding: 0.45rem 0.7rem; }
+.hero-chico .hero-kpis dd { font-size: 1.2rem; }
+
+.enlace { background: none; border: 0; padding: 0.35rem 0; min-height: 36px; color: var(--accent-strong); font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.enlace:hover { text-decoration: underline; }
+.fab-atencion ul { margin: 0; padding-left: 1.1rem; }
+
+.tabla-card { padding-top: 0.8rem; padding-bottom: 0.5rem; }
+.tabla-cab { display: flex; justify-content: space-between; align-items: center; }
+.tabla-cab .sec-titulo { margin: 0; }
+.tabla-pilares { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.tabla-pilares td { padding: 0.5rem 0.25rem; border-top: 1px solid var(--border); vertical-align: middle; }
+.tabla-pilares tr:first-child td { border-top: 0; }
+.tabla-pilares .pilar-num { display: inline-block; width: 1.2rem; color: var(--text-muted); }
+.tabla-valor { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabla-valor span { color: var(--text-muted); font-size: 0.78rem; }
+.tabla-pilares td:last-child { width: 1.8rem; text-align: right; }
+.semaforo { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+.semaforo.ok { background: var(--ok); } .semaforo.warn { background: var(--warn); } .semaforo.mal { background: var(--danger); }
+.solo-lectores { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.acc-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.8rem; }
+.acc-lista li + li { border-top: 1px solid var(--border); padding-top: 0.8rem; }
+.acc-cab { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+.acc-lista .fab-botones { margin-bottom: 0; }
+
+/* compacto: que el inicio entre casi en una pantalla */
+.app-top { flex-wrap: nowrap; }
+.app-top .app-der { flex-wrap: nowrap; min-width: 0; }
+.pill-estado { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabla-pilares td:first-child { white-space: nowrap; }
+.tabla-pilares .pilar-num { margin-right: 0.35rem; }
+.acc-lista .fab-botones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.acc-lista .btn { padding-left: 0.4rem; padding-right: 0.4rem; font-size: 0.82rem; }
+.acc-cab .btn-aprobar { margin-left: auto; }
+@media (max-width: 560px) {
+  .app-marca span { display: none; }
+  .app-marca strong { font-size: 1rem; }
+  .hero-chico { grid-template-columns: auto 1fr; justify-items: start; text-align: left; gap: 0.6rem 0.9rem; }
+  .hero-chico .hero-kpis { grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+  .hero-chico .hero-kpis > div { padding: 0.35rem 0.4rem; }
+  .hero-chico .hero-kpis dt { font-size: 0.66rem; }
+  .hero-chico .hero-kpis dd { font-size: 1.05rem; }
+  .hero-chico .hero-anillo, .hero-chico .hero-anillo svg { width: 76px; height: 76px; }
+  .hero-chico h1 { font-size: 1.05rem; }
+  .tabla-valor span { display: none; }
+  .tabla-pilares td { padding: 0.4rem 0.2rem; }
+  .fab-atencion { padding: 0.7rem 0.9rem; font-size: 0.88rem; }
+}
+.app-marca strong { white-space: nowrap; }
+@media (max-width: 560px) { .pill-tiempo { display: none; } }

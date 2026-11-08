@@ -56,7 +56,49 @@ interface PorConfirmar {
   itemId?: string;
 }
 
+type Vista = "inicio" | "proyectos" | "pilares" | "ordenes" | "actividad" | "modelos";
+const VISTAS: { id: Vista; nombre: string }[] = [
+  { id: "inicio", nombre: "Inicio" },
+  { id: "proyectos", nombre: "Proyectos" },
+  { id: "pilares", nombre: "Los 7 pilares" },
+  { id: "ordenes", nombre: "Órdenes" },
+  { id: "actividad", nombre: "Actividad" },
+  { id: "modelos", nombre: "Modelos y cuotas" },
+];
+const vistaDeHash = (): Vista => {
+  try {
+    const h = window.location.hash.replace("#", "");
+    return VISTAS.some((v) => v.id === h) ? (h as Vista) : "inicio";
+  } catch {
+    return "inicio";
+  }
+};
+
 export default function Fabrica() {
+  const [vista, setVista] = useState<Vista>("inicio");
+  const [menu, setMenu] = useState(false);
+  useEffect(() => {
+    setVista(vistaDeHash());
+    const alCambiar = () => setVista(vistaDeHash());
+    window.addEventListener("hashchange", alCambiar);
+    return () => window.removeEventListener("hashchange", alCambiar);
+  }, []);
+  const irA = (v: Vista) => {
+    setMenu(false);
+    setVista(v);
+    try {
+      window.history.replaceState(null, "", v === "inicio" ? window.location.pathname + window.location.search : `#${v}`);
+      window.scrollTo({ top: 0 });
+    } catch {
+      /* sin historial: igual cambia la vista */
+    }
+  };
+  useEffect(() => {
+    if (!menu) return;
+    const tecla = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [menu]);
   const [sesion, setSesion] = useState<"cargando" | "no" | "si">("cargando");
   const [latido, setLatido] = useState<Latido | null>(null);
   const [estado, setEstado] = useState<Record<string, FilaEstado>>({});
@@ -248,6 +290,13 @@ export default function Fabrica() {
   const hechasHoy = ejecutor.proyectos.reduce((n, e) => n + e.hechasHoy, 0);
   const ordenesEnCola = ordenes.filter((o) => estadoVisible(o, ahora) === "pendiente").length;
   const CIRC = 2 * Math.PI * 52;
+  const paraAprobar = proyectos.reduce((n, p) => n + leerCola(estado[`cola:${p.id}`]?.valor).length, 0);
+
+  const acciones = (p: (typeof proyectos)[number]) => {
+    const ej = ejecutor.proyectos.find((x) => x.id === p.id);
+    const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
+    return { ej, base, ae: accionEjecutor(ej), cola: leerCola(estado[`cola:${p.id}`]?.valor) };
+  };
 
   return (
     <div className="app">
@@ -256,57 +305,169 @@ export default function Fabrica() {
           <Logo />
           <div>
             <strong>IA Factory</strong>
-            <span>Centro de control</span>
+            <span>{VISTAS.find((v) => v.id === vista)?.nombre ?? "Centro de control"}</span>
           </div>
         </div>
         <div className="app-der">
-        <div className={`pill-estado ${modo}`} role="status">
-          <span className="fab-punto" aria-hidden="true" />
-          {modo === "vivo" && <>PC en vivo · latido {antiguedadTexto(latido?.visto_at, ahora)}</>}
-          {modo === "apagada" && <>PC sin conexión · foto de {antiguedadTexto(fotoDe, ahora)}</>}
-          {modo === "sin_datos" && <>Sin datos todavía</>}
-        </div>
-        <button type="button" className="btn btn-secondary btn-chico" onClick={() => void salir()}>
-          Salir
-        </button>
+          <div className={`pill-estado ${modo}`} role="status">
+            <span className="fab-punto" aria-hidden="true" />
+            {modo === "vivo" && <>En vivo<span className="pill-tiempo"> · {antiguedadTexto(latido?.visto_at, ahora)}</span></>}
+            {modo === "apagada" && <>Sin conexión<span className="pill-tiempo"> · {antiguedadTexto(fotoDe, ahora)}</span></>}
+            {modo === "sin_datos" && <>Sin datos todavía</>}
+          </div>
+          <button type="button" className="btn-menu" aria-label="Menú" aria-expanded={menu} aria-controls="menu-principal" onClick={() => setMenu((m) => !m)}>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              {menu ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+            </svg>
+          </button>
         </div>
       </header>
 
-      <section className="hero" aria-label="Salud de la fábrica">
-        <div className="hero-anillo">
-          <svg viewBox="0 0 120 120" width="148" height="148" role="img" aria-label={salud ? `Salud general ${salud.nota} de 100, grado ${salud.grado}` : "Sin nota todavía"}>
-            <defs>
-              <linearGradient id="grad-anillo" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="var(--accent)" />
-                <stop offset="100%" stopColor="var(--accent2)" />
-              </linearGradient>
-            </defs>
-            <circle cx="60" cy="60" r="52" className="anillo-fondo" />
-            <circle
-              cx="60" cy="60" r="52" className="anillo-valor" stroke="url(#grad-anillo)"
-              strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - (salud?.nota ?? 0) / 100)} transform="rotate(-90 60 60)"
-            />
-          </svg>
-          <div className="anillo-centro">
-            <strong>{salud ? salud.nota : "—"}</strong>
-            <span>{salud ? `grado ${salud.grado}` : "sin nota"}</span>
+      {menu && (
+        <>
+          <div className="menu-fondo" onClick={() => setMenu(false)} aria-hidden="true" />
+          <nav id="menu-principal" className="menu-panel" aria-label="Secciones">
+            <ul>
+              {VISTAS.map((v) => (
+                <li key={v.id}>
+                  <button type="button" aria-current={vista === v.id ? "page" : undefined} onClick={() => irA(v.id)}>
+                    {v.nombre}
+                    {v.id === "ordenes" && ordenesEnCola > 0 && <span className="menu-badge">{ordenesEnCola}</span>}
+                    {v.id === "proyectos" && paraAprobar > 0 && <span className="menu-badge">{paraAprobar}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="menu-pie">
+              {email && <span className="fab-sub">{email}</span>}
+              <button type="button" className="btn btn-secondary btn-chico" onClick={() => void salir()}>
+                Salir
+              </button>
+            </div>
+          </nav>
+        </>
+      )}
+
+      {refrescoFallo && (
+        <p role="alert" className="fab-sub">
+          No pude actualizar ({refrescoFallo}). Estás viendo lo último que se cargó.
+        </p>
+      )}
+      {porConfirmar && (
+        <div ref={dialogoRef} tabIndex={-1} role="alertdialog" aria-label="Confirmar orden" className="card fab-confirmar">
+          <p style={{ marginTop: 0 }}>{textoConfirmacion(porConfirmar.accion, porConfirmar.nombre, modo, porConfirmar.sensibilidad)}</p>
+          <div className="fab-botones" style={{ marginBottom: 0 }}>
+            <button type="button" className="btn btn-primary" disabled={enviando} onClick={() => void confirmar()}>
+              {enviando ? "Enviando…" : "Confirmar"}
+            </button>
+            <button type="button" className="btn btn-secondary" disabled={enviando} onClick={() => setPorConfirmar(null)}>
+              Cancelar
+            </button>
           </div>
         </div>
-        <div className="hero-texto">
-          <p className="hero-etiqueta">Salud de la fábrica</p>
-          <h1>{proyectos.length === 0 ? "Esperando a la PC" : atencion.length === 0 ? "Todo bajo control" : `${atencion.length} ${atencion.length === 1 ? "cosa" : "cosas"} para mirar`}</h1>
-          <p className="fab-sub">Promedio de la nota de {proyectos.length} {proyectos.length === 1 ? "proyecto" : "proyectos"}, auditados por la propia fábrica.</p>
-        </div>
-        <dl className="hero-kpis">
-          <div><dt>Proyectos</dt><dd>{proyectos.length}</dd></div>
-          <div><dt>Pendientes</dt><dd>{pendientesTotal}</dd></div>
-          <div><dt>Hechas hoy</dt><dd>{hechasHoy}</dd></div>
-          <div><dt>Órdenes en cola</dt><dd>{ordenesEnCola}</dd></div>
-        </dl>
-      </section>
+      )}
+      {aviso && (
+        <p role="status" className="fab-sub fab-ancho">
+          {aviso}
+        </p>
+      )}
 
+      {vista === "inicio" && (
+        <>
+          <section className="hero hero-chico" aria-label="Salud de la fábrica">
+            <div className="hero-anillo">
+              <svg viewBox="0 0 120 120" width="92" height="92" role="img" aria-label={salud ? `Salud general ${salud.nota} de 100, grado ${salud.grado}` : "Sin nota todavía"}>
+                <defs>
+                  <linearGradient id="grad-anillo" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="var(--accent)" />
+                    <stop offset="100%" stopColor="var(--accent2)" />
+                  </linearGradient>
+                </defs>
+                <circle cx="60" cy="60" r="52" className="anillo-fondo" />
+                <circle cx="60" cy="60" r="52" className="anillo-valor" stroke="url(#grad-anillo)" strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - (salud?.nota ?? 0) / 100)} transform="rotate(-90 60 60)" />
+              </svg>
+              <div className="anillo-centro">
+                <strong>{salud ? salud.nota : "—"}</strong>
+                <span>{salud ? salud.grado : ""}</span>
+              </div>
+            </div>
+            <div className="hero-texto">
+              <p className="hero-etiqueta">Salud de la fábrica</p>
+              <h1>{proyectos.length === 0 ? "Esperando a la PC" : atencion.length === 0 ? "Todo bajo control" : `${atencion.length} ${atencion.length === 1 ? "cosa" : "cosas"} para mirar`}</h1>
+            </div>
+            <dl className="hero-kpis">
+              <div><dt>Proyectos</dt><dd>{proyectos.length}</dd></div>
+              <div><dt>Pendientes</dt><dd>{pendientesTotal}</dd></div>
+              <div><dt>Hechas hoy</dt><dd>{hechasHoy}</dd></div>
+              <div><dt>En cola</dt><dd>{ordenesEnCola}</dd></div>
+            </dl>
+          </section>
+
+          {atencion.length > 0 && (
+            <section className="card fab-atencion" aria-label="Atención">
+              <ul>
+                {atencion.slice(0, 2).map((a, i) => (
+                  <li key={i}>{a.texto}</li>
+                ))}
+              </ul>
+              {atencion.length > 2 && (
+                <button type="button" className="enlace" onClick={() => irA("actividad")}>
+                  Ver las {atencion.length}
+                </button>
+              )}
+            </section>
+          )}
+
+          <section aria-labelledby="t-pilares" className="card tabla-card">
+            <div className="tabla-cab">
+              <h2 id="t-pilares" className="sec-titulo">Los 7 pilares</h2>
+              <button type="button" className="enlace" onClick={() => irA("pilares")}>Detalle</button>
+            </div>
+            <table className="tabla-pilares">
+              <caption className="solo-lectores">Resumen de los 7 pilares</caption>
+              <thead className="solo-lectores"><tr><th>Pilar</th><th>Valor</th><th>Estado</th></tr></thead>
+              <tbody>
+                {pilares.map((pl) => (
+                  <tr key={pl.clave} className={pl.tono}>
+                    <td><span className="pilar-num">{pl.n}</span> {pl.nombre}</td>
+                    <td className="tabla-valor"><strong>{pl.valor}</strong> <span>{pl.unidad}</span></td>
+                    <td><span className={`semaforo ${pl.tono}`} role="img" aria-label={pl.tono === "ok" ? "bien" : pl.tono === "warn" ? "atención" : pl.tono === "mal" ? "mal" : "sin dato"} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+
+          <section aria-labelledby="t-acciones" className="card">
+            <h2 id="t-acciones" className="sec-titulo">Acciones</h2>
+            {proyectos.length === 0 && <p style={{ margin: 0 }}>Todavía no hay proyectos publicados.</p>}
+            <ul className="acc-lista">
+              {proyectos.map((p) => {
+                const { ej, base, ae, cola } = acciones(p);
+                return (
+                  <li key={p.id}>
+                    <div className="acc-cab">
+                      <strong>{p.nombre}</strong>
+                      <span className={`fab-nota ${p.grado ?? ""}`}>{p.nota !== null ? `${p.nota}${p.grado ? ` · ${p.grado}` : ""}` : "sin nota"}</span>
+                      {ej?.pausado && <span className="fab-chip mal">pausado</span>}
+                      {cola.length > 0 && <button type="button" className="btn btn-primary btn-chico btn-aprobar" onClick={() => irA("proyectos")}>Aprobar {cola.length}</button>}
+                    </div>
+                    <div className="fab-botones">
+                      <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: ae.accion })}>{ae.label}</button>
+                      <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: "auditar" })}>Auditar</button>
+                      <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: "encolar" })}>Armar plan</button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </>
+      )}
+
+      {vista === "pilares" && (
       <section aria-labelledby="t-pilares">
-        <h2 id="t-pilares" className="sec-titulo">Los 7 pilares</h2>
+        <h2 id="t-pilares" className="sec-titulo">Los 7 pilares, en detalle</h2>
         <ul className="pilares">
           {pilares.map((pl) => (
             <li key={pl.clave} className={`pilar ${pl.tono}`}>
@@ -323,24 +484,10 @@ export default function Fabrica() {
         </ul>
       </section>
 
-      <div className="fab-grid">
-      {refrescoFallo && (
-        <p role="alert" className="fab-sub fab-ancho">
-          No pude actualizar ({refrescoFallo}). Estás viendo lo último que se cargó.
-        </p>
       )}
 
-      {atencion.length > 0 && (
-        <section className="card fab-atencion fab-ancho" aria-label="Atención">
-          <h2 style={{ margin: 0 }}>Para mirar primero</h2>
-          <ul>
-            {atencion.map((a, i) => (
-              <li key={i}>{a.texto}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-
+      {vista === "proyectos" && (
+        <div className="fab-grid">
       {!pc.ordenes && <p className="fab-sub fab-ancho">Las órdenes remotas están desactivadas en la PC.</p>}
       {pc.ordenes && modo === "vivo" && !pc.tablero && <p className="fab-sub fab-ancho">El tablero de la PC está cerrado: las órdenes esperan hasta que lo abras.</p>}
 
@@ -440,39 +587,11 @@ export default function Fabrica() {
         );
       })}
 
-      {ejecutor.ultima && (
-        <section className="card fab-ancho">
-          <h2>Última corrida del ejecutor</h2>
-          <p style={{ margin: 0 }}>
-            {nombreDe(proyectos, ejecutor.ultima.proyecto)}: {resultadoTexto(ejecutor.ultima.resultado)}{" "}
-            <span className="fab-sub">({antiguedadTexto(ejecutor.ultima.cuando, ahora)})</span>
-          </p>
-        </section>
+        </div>
       )}
 
-      <section className="card">
-        <h2>Cuotas de modelos</h2>
-        {cuotas.length === 0 ? (
-          <p>Sin información.</p>
-        ) : (
-          <ul className="fab-filas">
-            {cuotas.map((c) => {
-              const enfriando = c.hasta && Date.parse(c.hasta) > ahora;
-              return (
-                <li key={c.ruta}>
-                  <strong>{c.ruta}</strong>
-                  <span className="fab-sub">
-                    {c.usado !== null ? `${c.usado} uso${c.usado === 1 ? "" : "s"} hoy` : "sin dato de uso"}
-                    {enfriando ? ` · sin cupo hasta ${fechaCorta(c.hasta as string)}` : ""}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="card">
+      {vista === "ordenes" && <div className="fab-grid">
+      <section className="card fab-ancho">
         <h2>Órdenes</h2>
         {ordenes.length === 0 ? (
           <p>No hay órdenes.</p>
@@ -505,6 +624,31 @@ export default function Fabrica() {
         )}
       </section>
 
+</div>}
+
+      {vista === "actividad" && (
+        <div className="fab-grid">
+      {atencion.length > 0 && (
+        <section className="card fab-atencion fab-ancho" aria-label="Atención">
+          <h2 style={{ margin: 0 }}>Para mirar primero</h2>
+          <ul>
+            {atencion.map((a, i) => (
+              <li key={i}>{a.texto}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {ejecutor.ultima && (
+        <section className="card fab-ancho">
+          <h2>Última corrida del ejecutor</h2>
+          <p style={{ margin: 0 }}>
+            {nombreDe(proyectos, ejecutor.ultima.proyecto)}: {resultadoTexto(ejecutor.ultima.resultado)}{" "}
+            <span className="fab-sub">({antiguedadTexto(ejecutor.ultima.cuando, ahora)})</span>
+          </p>
+        </section>
+      )}
+
       <section className="card fab-ancho">
         <h2>Eventos recientes</h2>
         {eventos.length === 0 ? (
@@ -525,25 +669,33 @@ export default function Fabrica() {
         )}
       </section>
 
-      {porConfirmar && (
-        <div ref={dialogoRef} tabIndex={-1} role="alertdialog" aria-label="Confirmar orden" className="card fab-confirmar fab-ancho">
-          <p style={{ marginTop: 0 }}>{textoConfirmacion(porConfirmar.accion, porConfirmar.nombre, modo, porConfirmar.sensibilidad)}</p>
-          <div className="fab-botones" style={{ marginBottom: 0 }}>
-            <button type="button" className="btn btn-primary" disabled={enviando} onClick={() => void confirmar()}>
-              {enviando ? "Enviando…" : "Confirmar"}
-            </button>
-            <button type="button" className="btn btn-secondary" disabled={enviando} onClick={() => setPorConfirmar(null)}>
-              Cancelar
-            </button>
-          </div>
         </div>
       )}
-      {aviso && (
-        <p role="status" className="fab-sub fab-ancho">
-          {aviso}
-        </p>
-      )}
-      </div>
+
+      {vista === "modelos" && <div className="fab-grid">
+      <section className="card fab-ancho">
+        <h2>Cuotas de modelos</h2>
+        {cuotas.length === 0 ? (
+          <p>Sin información.</p>
+        ) : (
+          <ul className="fab-filas">
+            {cuotas.map((c) => {
+              const enfriando = c.hasta && Date.parse(c.hasta) > ahora;
+              return (
+                <li key={c.ruta}>
+                  <strong>{c.ruta}</strong>
+                  <span className="fab-sub">
+                    {c.usado !== null ? `${c.usado} uso${c.usado === 1 ? "" : "s"} hoy` : "sin dato de uso"}
+                    {enfriando ? ` · sin cupo hasta ${fechaCorta(c.hasta as string)}` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+</div>}
     </div>
   );
 }
