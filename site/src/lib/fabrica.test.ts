@@ -187,3 +187,24 @@ describe("auditoría legible", () => {
     expect(proximoPaso({ ...a, conteos: { alta: 0, media: 0, baja: 0, info: 4 } }, 0, 0)).toMatch(/No hace falta/);
   });
 });
+
+import { calcularPilares, saludGeneral } from "./fabrica";
+describe("pilares", () => {
+  const ej = { activo: true, pausadoProyectos: [], ultima: null, proyectos: [
+    { id: "a", habilitado: true, pausado: null, esperando: 0, hechasHoy: 2, necesitaPersona: 0, sensibilidad: "P3" },
+    { id: "b", habilitado: false, pausado: null, esperando: 0, hechasHoy: 0, necesitaPersona: 0, sensibilidad: null },
+  ] } as never;
+  const ps = [{ id: "a", nombre: "A", nota: 80, grado: "B", pendientes: 1, sensibilidad: "P3" }, { id: "b", nombre: "B", nota: 60, grado: "C", pendientes: 0, sensibilidad: null }];
+  it("devuelve 7 pilares con datos vivos", () => {
+    const r = calcularPilares(ps, ej, [{ ruta: "x", usado: 1, limite: null, hasta: null }], [], 0, Date.now());
+    expect(r).toHaveLength(7);
+    expect(r[0].valor).toBe("1/2");
+    expect(r[4].valor).toBe("1");
+    expect(r[5].tono).toBe("ok");
+    expect(r[6].valor).toBe("—");
+  });
+  it("salud general promedia notas", () => {
+    expect(saludGeneral(ps)).toEqual({ nota: 70, grado: "C" });
+    expect(saludGeneral([])).toBeNull();
+  });
+});

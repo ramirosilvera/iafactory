@@ -5,6 +5,8 @@ import {
   accionEjecutor,
   antiguedadTexto,
   calcularAtencion,
+  calcularPilares,
+  saludGeneral,
   esErrorDePermiso,
   leerAuditoria,
   proximoPaso,
@@ -215,32 +217,84 @@ export default function Fabrica() {
     setPorConfirmar(p);
   };
 
-  return (
-    <div className="fab-grid">
-      <div className={`card fab-estado fab-ancho ${modo}`} role="status" style={{ display: "flex", gap: "0.7rem", alignItems: "center" }}>
-        <span className="fab-punto" aria-hidden="true" />
-        <div>
-          {modo === "vivo" && (
-            <>
-              <strong>PC en vivo</strong>
-              <div className="fab-sub">Último latido {antiguedadTexto(latido?.visto_at, ahora)}</div>
-            </>
-          )}
-          {modo === "apagada" && (
-            <>
-              <strong>PC sin conexión</strong>
-              <div className="fab-sub">Ves la última foto ({antiguedadTexto(fotoDe, ahora)}). Las órdenes quedan en cola hasta que vuelva.</div>
-            </>
-          )}
-          {modo === "sin_datos" && (
-            <>
-              <strong>Sin datos todavía</strong>
-              <div className="fab-sub">La PC aún no publicó nada.</div>
-            </>
-          )}
-        </div>
-      </div>
+  const auditorias = proyectos.map((p) => leerAuditoria(estado[`auditoria:${p.id}`]?.valor)).filter((x): x is NonNullable<typeof x> => x !== null);
+  const pilares = calcularPilares(proyectos, ejecutor, cuotas, auditorias, atencion.length, ahora);
+  const salud = saludGeneral(proyectos);
+  const pendientesTotal = proyectos.reduce((n, p) => n + p.pendientes, 0);
+  const hechasHoy = ejecutor.proyectos.reduce((n, e) => n + e.hechasHoy, 0);
+  const ordenesEnCola = ordenes.filter((o) => estadoVisible(o, ahora) === "pendiente").length;
+  const CIRC = 2 * Math.PI * 52;
 
+  return (
+    <div className="app">
+      <header className="app-top">
+        <div className="app-marca">
+          <Logo />
+          <div>
+            <strong>IA Factory</strong>
+            <span>Centro de control</span>
+          </div>
+        </div>
+        <div className={`pill-estado ${modo}`} role="status">
+          <span className="fab-punto" aria-hidden="true" />
+          {modo === "vivo" && <>PC en vivo · latido {antiguedadTexto(latido?.visto_at, ahora)}</>}
+          {modo === "apagada" && <>PC sin conexión · foto de {antiguedadTexto(fotoDe, ahora)}</>}
+          {modo === "sin_datos" && <>Sin datos todavía</>}
+        </div>
+      </header>
+
+      <section className="hero" aria-label="Salud de la fábrica">
+        <div className="hero-anillo">
+          <svg viewBox="0 0 120 120" width="148" height="148" role="img" aria-label={salud ? `Salud general ${salud.nota} de 100, grado ${salud.grado}` : "Sin nota todavía"}>
+            <defs>
+              <linearGradient id="grad-anillo" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="var(--accent)" />
+                <stop offset="100%" stopColor="var(--accent2)" />
+              </linearGradient>
+            </defs>
+            <circle cx="60" cy="60" r="52" className="anillo-fondo" />
+            <circle
+              cx="60" cy="60" r="52" className="anillo-valor" stroke="url(#grad-anillo)"
+              strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - (salud?.nota ?? 0) / 100)} transform="rotate(-90 60 60)"
+            />
+          </svg>
+          <div className="anillo-centro">
+            <strong>{salud ? salud.nota : "—"}</strong>
+            <span>{salud ? `grado ${salud.grado}` : "sin nota"}</span>
+          </div>
+        </div>
+        <div className="hero-texto">
+          <p className="hero-etiqueta">Salud de la fábrica</p>
+          <h1>{proyectos.length === 0 ? "Esperando a la PC" : atencion.length === 0 ? "Todo bajo control" : `${atencion.length} ${atencion.length === 1 ? "cosa" : "cosas"} para mirar`}</h1>
+          <p className="fab-sub">Promedio de la nota de {proyectos.length} {proyectos.length === 1 ? "proyecto" : "proyectos"}, auditados por la propia fábrica.</p>
+        </div>
+        <dl className="hero-kpis">
+          <div><dt>Proyectos</dt><dd>{proyectos.length}</dd></div>
+          <div><dt>Pendientes</dt><dd>{pendientesTotal}</dd></div>
+          <div><dt>Hechas hoy</dt><dd>{hechasHoy}</dd></div>
+          <div><dt>Órdenes en cola</dt><dd>{ordenesEnCola}</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="t-pilares">
+        <h2 id="t-pilares" className="sec-titulo">Los 7 pilares</h2>
+        <ul className="pilares">
+          {pilares.map((pl) => (
+            <li key={pl.clave} className={`pilar ${pl.tono}`}>
+              <div className="pilar-cab">
+                <span className="pilar-icono" aria-hidden="true"><IconoPilar clave={pl.clave} /></span>
+                <span className="pilar-num">{pl.n}</span>
+              </div>
+              <h3>{pl.nombre}</h3>
+              <p className="pilar-lema">{pl.lema}</p>
+              <p className="pilar-valor"><strong>{pl.valor}</strong> <span>{pl.unidad}</span></p>
+              <p className="pilar-detalle">{pl.detalle}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div className="fab-grid">
       {refrescoFallo && (
         <p role="alert" className="fab-sub fab-ancho">
           No pude actualizar ({refrescoFallo}). Estás viendo lo último que se cargó.
@@ -460,6 +514,40 @@ export default function Fabrica() {
           {aviso}
         </p>
       )}
+      </div>
     </div>
+  );
+}
+
+function Logo() {
+  return (
+    <svg className="logo" viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+      <defs>
+        <linearGradient id="grad-logo" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="var(--accent)" />
+          <stop offset="100%" stopColor="var(--accent2)" />
+        </linearGradient>
+      </defs>
+      <rect width="40" height="40" rx="11" fill="url(#grad-logo)" />
+      <path d="M10 28V16l7 4v-4l7 4v-4l6 3v9z" fill="#fff" fillOpacity=".95" />
+      <rect x="11" y="9" width="4" height="9" rx="1" fill="#fff" fillOpacity=".95" />
+    </svg>
+  );
+}
+
+function IconoPilar({ clave }: { clave: string }) {
+  const caminos: Record<string, string> = {
+    autonomia: "M12 3v3m0 12v3M3 12h3m12 0h3M7 7l2 2m6 6 2 2M17 7l-2 2m-6 6-2 2M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+    eficiencia: "M13 2 4 14h7l-1 8 9-12h-7z",
+    mejora: "M3 17l6-6 4 4 8-8m0 0h-5m5 0v5",
+    "cinco-s": "M4 6h16M4 12h16M4 18h10",
+    privacidad: "M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6zM9.5 12l2 2 3.5-4",
+    experiencia: "M12 21c-5-4-8-7-8-11a5 5 0 0 1 8-3.500A5 5 0 0 1 20 10c0 4-3 7-8 11z",
+    calidad: "M12 3l2.5 5.5 6 .7-4.5 4 1.3 6L12 16.5 6.7 19.2 8 13.2 3.5 9.2l6-.7z",
+  };
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d={caminos[clave] ?? ""} />
+    </svg>
   );
 }

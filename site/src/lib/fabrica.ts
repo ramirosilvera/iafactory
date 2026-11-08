@@ -355,3 +355,89 @@ export function proximoPaso(a: Auditoria | null, tareasEsperando: number, necesi
 }
 
 export const SEV_LABEL: Record<string, string> = { alta: "Alta", media: "Media", baja: "Baja", info: "Info" };
+
+// ───────── Los 7 pilares de la fábrica, con el dato vivo que los respalda ─────────
+export type TonoPilar = "ok" | "warn" | "mal" | "neutro";
+export interface Pilar {
+  n: number;
+  clave: string;
+  nombre: string;
+  lema: string;
+  valor: string;
+  unidad: string;
+  detalle: string;
+  tono: TonoPilar;
+}
+
+export function calcularPilares(
+  proyectos: ResumenProyecto[],
+  ejecutor: EstadoEjecutor,
+  cuotas: CuotaRuta[],
+  auditorias: Auditoria[],
+  paraMirar: number,
+  ahoraMs: number,
+): Pilar[] {
+  const ejs = ejecutor.proyectos;
+  const activos = ejs.filter((e) => e.habilitado && !e.pausado).length;
+  const pausados = ejs.filter((e) => e.pausado).length;
+  const hechas = ejs.reduce((s, e) => s + e.hechasHoy, 0);
+  const conCupo = cuotas.filter((c) => !(c.hasta && Date.parse(c.hasta) > ahoraMs)).length;
+  const delta = auditorias.reduce((s, a) => s + (a.tendencia.delta ?? 0), 0);
+  const nuevos = auditorias.reduce((s, a) => s + a.tendencia.nuevos, 0);
+  const resueltos = auditorias.reduce((s, a) => s + a.tendencia.resueltos, 0);
+  const altas = auditorias.reduce((s, a) => s + a.conteos.alta, 0);
+  const p3 = proyectos.filter((p) => p.sensibilidad === "P3").length;
+  const s = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
+  return [
+    {
+      n: 1, clave: "autonomia", nombre: "Autonomía", lema: "Automática y reversible",
+      valor: `${activos}/${ejs.length}`, unidad: s(activos, "ejecutor activo", "ejecutores activos"),
+      detalle: `${hechas} ${s(hechas, "tarea hecha", "tareas hechas")} hoy. Si algo falla, revierte solo y frena.`,
+      tono: pausados > 0 ? "warn" : activos > 0 ? "ok" : "neutro",
+    },
+    {
+      n: 2, clave: "eficiencia", nombre: "Eficiencia", lema: "Costo cero",
+      valor: cuotas.length ? `${conCupo}/${cuotas.length}` : "—", unidad: "rutas con cupo",
+      detalle: "Primero rutas gratuitas; lo pago nunca es el camino por defecto.",
+      tono: cuotas.length === 0 ? "neutro" : conCupo === 0 ? "mal" : conCupo < cuotas.length ? "warn" : "ok",
+    },
+    {
+      n: 3, clave: "mejora", nombre: "Mejora continua", lema: "Medir antes de decidir",
+      valor: auditorias.length ? `${delta > 0 ? "+" : ""}${delta}` : "—", unidad: "puntos vs. auditoría anterior",
+      detalle: `${nuevos} ${s(nuevos, "hallazgo nuevo", "hallazgos nuevos")} · ${resueltos} ${s(resueltos, "resuelto", "resueltos")}. Se decide con datos, no con opiniones.`,
+      tono: !auditorias.length ? "neutro" : delta < 0 ? "warn" : "ok",
+    },
+    {
+      n: 4, clave: "cinco-s", nombre: "Metodología 5S", lema: "Orden y limpieza",
+      valor: "Siempre", unidad: "regla permanente",
+      detalle: "Cada proyecto mantiene su raíz limpia: respaldos con fecha y nada suelto.",
+      tono: "neutro",
+    },
+    {
+      n: 5, clave: "privacidad", nombre: "Privacidad P3", lema: "Datos enmascarados",
+      valor: String(p3), unidad: s(p3, "proyecto con datos sensibles", "proyectos con datos sensibles"),
+      detalle: "Lo sensible se queda en la PC o sale enmascarado y se des-enmascara al volver.",
+      tono: "neutro",
+    },
+    {
+      n: 6, clave: "experiencia", nombre: "Experiencia", lema: "Simple e intuitiva",
+      valor: paraMirar === 0 ? "Todo en orden" : String(paraMirar), unidad: paraMirar === 0 ? "nada para mirar" : s(paraMirar, "cosa para mirar", "cosas para mirar"),
+      detalle: "Cada acción en un paso, con confirmación clara antes de actuar.",
+      tono: paraMirar === 0 ? "ok" : "warn",
+    },
+    {
+      n: 7, clave: "calidad", nombre: "Calidad", lema: "Lo crítico, auditado solo",
+      valor: auditorias.length ? String(altas) : "—", unidad: s(altas, "hallazgo alto abierto", "hallazgos altos abiertos"),
+      detalle: "La fábrica detecta sola el código sensible y lo audita cada día.",
+      tono: !auditorias.length ? "neutro" : altas > 0 ? "mal" : "ok",
+    },
+  ];
+}
+
+/** Promedio de las notas disponibles (0–100) y su grado; null si ningún proyecto tiene nota. */
+export function saludGeneral(proyectos: ResumenProyecto[]): { nota: number; grado: string } | null {
+  const notas = proyectos.map((p) => p.nota).filter((n): n is number => typeof n === "number");
+  if (!notas.length) return null;
+  const nota = Math.round(notas.reduce((a, b) => a + b, 0) / notas.length);
+  return { nota, grado: nota >= 90 ? "A" : nota >= 75 ? "B" : nota >= 60 ? "C" : "D" };
+}
