@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SUPABASE_CONFIGURADO, supabase } from "../lib/supabase";
+import { destinoSeguro } from "../lib/destino";
 import ConfigWarning from "./ConfigWarning";
 
 export default function AuthForm() {
@@ -33,8 +34,7 @@ export default function AuthForm() {
         return;
       }
       setEstado("ok");
-      const base = (import.meta.env.BASE_URL as string) || "/";
-      window.location.href = base;
+      window.location.href = destinoSeguro(new URLSearchParams(window.location.search).get("volver"), (import.meta.env.BASE_URL as string) || "/");
     } catch (e) {
       setEstado("error");
       setError(e instanceof Error ? e.message : "Error de conexión con Mi ropa.");

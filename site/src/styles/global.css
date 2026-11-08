@@ -878,3 +878,54 @@ body.tiene-aviso-actualizacion {
   gap: 0.5rem;
   text-align: center;
 }
+
+/* ───────── Tablero de la IA Factory (/fabrica/): identidad propia ───────── */
+body.marca-fabrica {
+  max-width: 1040px;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+}
+.fab-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 880px) {
+  .fab-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .fab-grid > .fab-ancho {
+    grid-column: 1 / -1;
+  }
+}
+.fab-estado {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-left: 6px solid var(--text-muted);
+}
+.fab-estado.vivo { border-left-color: var(--ok); }
+.fab-estado.apagada { border-left-color: var(--text-muted); }
+.fab-estado.sin_datos { border-left-color: var(--warn); }
+.fab-punto { width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--text-muted); flex: none; }
+.vivo .fab-punto { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 25%, transparent); }
+.sin_datos .fab-punto { background: var(--warn); }
+.fab-atencion { border-left: 6px solid var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+.fab-atencion ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.fab-proyecto h3 { margin: 0; font-size: 1.05rem; }
+.fab-cab { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.fab-nota { font-weight: 700; font-variant-numeric: tabular-nums; }
+.fab-nota.A, .fab-nota.B { color: var(--ok); }
+.fab-nota.C { color: var(--warn); }
+.fab-nota.D { color: var(--danger); }
+.fab-chip { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.78rem; background: var(--accent-soft); color: var(--accent-strong); margin-right: 0.3rem; }
+.fab-chip.mal { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); color: var(--danger); }
+.fab-chip.ok { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); color: var(--ok); }
+.fab-botones { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; }
+.fab-botones .btn { min-height: 44px; }
+.fab-filas { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.fab-filas > li { display: flex; flex-direction: column; gap: 0.35rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.fab-fila-acc { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.fab-fila-acc .btn { min-height: 44px; }
+.fab-sub { color: var(--text-muted); font-size: 0.85rem; }
+.fab-confirmar { position: sticky; bottom: 0.75rem; border: 2px solid var(--accent); box-shadow: var(--shadow-elevada); z-index: 5; }
