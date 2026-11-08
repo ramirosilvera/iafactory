@@ -1,4 +1,4 @@
--- Prueba de seguridad del schema `factory` (RLS). Se corre contra un Postgres con las migraciones 0038 a 0043 aplicadas (y 0038 se puede reaplicar sola)
+-- Prueba de seguridad del schema `factory` (RLS). Se corre contra un Postgres con las migraciones 0038 a 0043 aplicadas, en orden
 -- (y los objetos mínimos de Supabase: schema auth, roles anon/authenticated). Todo ocurre dentro de una transacción
 -- que se deshace al final: no deja datos. Falla (ON_ERROR_STOP) si alguna barrera no se cumple.
 --   psql "$URL" -v ON_ERROR_STOP=1 -f supabase/tests/factory_rls.sql
@@ -35,6 +35,10 @@ insert into auth.users (id, email, email_confirmed_at) values
   ('00000000-0000-0000-0000-0000000000d1', 'raa1990.rs@gmail.com', null),                 -- mismo email SIN confirmar
   ('00000000-0000-0000-0000-0000000000e1', 'raa1990.rs+factory-pc@gmail.com', null);
 
+-- S12: el rebind del admin que hace 0043 (acá los usuarios se crean después de las migraciones, así que se repite)
+update factory.acceso a set user_id = u.id from auth.users u
+ where a.rol = 'admin' and lower(u.email) = a.email and u.email_confirmed_at is not null and a.user_id is distinct from u.id;
+
 -- La cuenta pc la da de alta el admin (alta_pc); antes de eso, ni la confirmada tiene permisos (R1)
 select pg_temp.como('00000000-0000-0000-0000-0000000000b1');
 do $$ begin
@@ -55,7 +59,7 @@ do $$ begin
 end $$;
 select pg_temp.vuelvo();
 do $$ begin
-  if (select user_id from factory.acceso where email = 'raa1990.rs@gmail.com' and rol='admin') is not null then raise exception 'alta_pc tocó al admin'; end if;
+  if (select user_id from factory.acceso where email = 'raa1990.rs@gmail.com' and rol='admin') is distinct from '00000000-0000-0000-0000-0000000000a1'::uuid then raise exception 'alta_pc tocó al admin'; end if;
 end $$;
 
 -- datos de partida (como dueño de la base)
@@ -180,13 +184,38 @@ begin
   alter table factory.ordenes enable trigger orden_inmutable;
   perform pg_temp.como('00000000-0000-0000-0000-0000000000b1');
   perform pg_temp.debe_fallar($q$update factory.ordenes set estado = 'tomada' where id = '33333333-3333-3333-3333-333333333333'$q$, 'S1: la PC toma una orden vencida');
+  perform pg_temp.debe_fallar($q$update factory.ordenes set estado = 'hecha', resuelta_at = now() where id = '33333333-3333-3333-3333-333333333333'$q$, 'F-01: la PC resuelve una orden pendiente saltando tomada');
   perform pg_temp.vuelvo();
   -- S9: el admin no escribe resultado al cancelar
   perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
   insert into factory.ordenes (id, accion, vigencia_hasta) values ('44444444-4444-4444-4444-444444444444', 'auditar', now() + interval '1 hour');
   perform pg_temp.debe_fallar($q$update factory.ordenes set estado = 'cancelada', resultado = 'Hecha: todo ok' where id = '44444444-4444-4444-4444-444444444444'$q$, 'S9: admin escribe resultado');
   update factory.ordenes set estado = 'cancelada' where id = '44444444-4444-4444-4444-444444444444';
-  -- S12: el admin quedó atado a su id; otro usuario con ese email sin confirmar sigue sin acceso
+  perform pg_temp.vuelvo();
+  -- F-01: tomada -> tomada (pisar tomada_at/resultado) y reabrir estados finales
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
+  insert into factory.ordenes (id, accion, vigencia_hasta) values ('55555555-5555-5555-5555-555555555555', 'auditar', now() + interval '1 hour');
+  perform pg_temp.vuelvo();
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000b1');
+  update factory.ordenes set estado = 'tomada', tomada_at = now() where id = '55555555-5555-5555-5555-555555555555';
+  perform pg_temp.debe_fallar($q$update factory.ordenes set estado = 'tomada', tomada_at = now() where id = '55555555-5555-5555-5555-555555555555'$q$, 'F-01: la PC repite tomada');
+  update factory.ordenes set estado = 'hecha', resuelta_at = now(), resultado = 'ok' where id = '55555555-5555-5555-5555-555555555555';
+  update factory.ordenes set resultado = 'pisado' where id = '55555555-5555-5555-5555-555555555555';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'F-01: la PC reescribió una orden hecha'; end if;
+  perform pg_temp.vuelvo();
+  -- F-02: insert de muchas filas en UNA sentencia no supera el tope de 50 vigentes
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
+  perform pg_temp.debe_fallar($q$insert into factory.ordenes (accion, vigencia_hasta) select 'auditar', now() + interval '1 hour' from generate_series(1, 200)$q$, 'F-02: bulk insert pasa el tope');
+  perform pg_temp.vuelvo();
+  if (select count(*) from factory.ordenes where estado = 'pendiente' and vigencia_hasta > now()) > 50 then
+    raise exception 'F-02: se pasó del tope con insert múltiple';
+  end if;
+  -- F-06: anon no ve ni escribe nada
+  perform set_config('request.jwt.claim.sub', '', true);
+  execute 'set local role anon';
+  perform pg_temp.debe_fallar($q$select * from factory.ordenes$q$, 'F-06: anon lee ordenes');
+  perform pg_temp.debe_fallar($q$insert into factory.ordenes (accion, vigencia_hasta) values ('auditar', now() + interval '1 hour')$q$, 'F-06: anon crea ordenes');
   perform pg_temp.vuelvo();
   perform pg_temp.como('00000000-0000-0000-0000-0000000000c1');
   -- S10: un usuario sin rol no ve el conteo
@@ -202,6 +231,12 @@ begin
   delete from factory.estado where clave = 'cuotas';
   get diagnostics n = row_count;
   if n <> 1 then raise exception 'S13: la PC no pudo borrar estado'; end if;
+  perform pg_temp.vuelvo();
+  -- S12: si la cuenta del admin se reemplaza por otra con el mismo email, la nueva NO hereda el rol hasta el rebind
+  delete from auth.users where id = '00000000-0000-0000-0000-0000000000a1';
+  insert into auth.users (id, email, email_confirmed_at) values ('00000000-0000-0000-0000-0000000000f1', 'raa1990.rs@gmail.com', now());
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000f1');
+  if factory.tiene_rol('admin') then raise exception 'S12: una cuenta nueva con el email del admin heredó el rol'; end if;
   perform pg_temp.vuelvo();
 end $$;
 

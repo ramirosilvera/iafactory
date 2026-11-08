@@ -152,8 +152,8 @@ drop policy if exists "eventos: pc purga" on factory.eventos;
 create policy "eventos: pc purga" on factory.eventos for delete using (factory.tiene_rol('pc') and ts < now() - interval '30 days');
 
 -- Órdenes: el admin crea (siempre 'pendiente', con vigencia futura, máx. 50 vigentes a la vez) y solo puede cancelar las
--- pendientes; la PC las toma y resuelve (nunca crea, nunca reabre). Estas son las policies FINALES: si se reaplica
--- esta migración sola, el resultado es el mismo (R12).
+-- pendientes; la PC las toma y resuelve (nunca crea, nunca reabre). Estas son las policies BASE: 0043 las endurece
+-- (el CI reaplica siempre 0038..0043 en orden y la última manda; no reaplicar 0038 sola, revertiría ese endurecimiento).
 create or replace function factory.cantidad_pendientes() returns integer
 language sql stable security definer set search_path = ''
 -- R11: solo cuentan las vigentes (las vencidas que quedaron pendientes por PC apagada no trancan la cola)

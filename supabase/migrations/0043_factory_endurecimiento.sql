@@ -31,7 +31,9 @@ drop policy if exists "ordenes: pc resuelve" on factory.ordenes;
 create policy "ordenes: pc resuelve" on factory.ordenes for update
   using (factory.tiene_rol('pc') and estado in ('pendiente','tomada'))
   with check (factory.tiene_rol('pc') and estado in ('tomada','hecha','rechazada','vencida')
-              and (estado <> 'tomada' or vigencia_hasta > now()));
+              and (estado in ('hecha','rechazada','vencida') or vigencia_hasta > now()));
+-- (hecha/rechazada se admiten aunque la orden venza mientras se ejecuta: la acción ya corrió y hay que poder registrarla.
+-- Lo que no se admite es TOMAR una vencida ni saltear 'tomada': eso lo fuerza la máquina de estados de orden_inmutable.)
 
 -- S9: solo la PC registra toma/resultado; el admin al cancelar solo cambia el estado. (Sin sesión, p. ej. el dueño de la
 -- base por migración, no se restringe.)
@@ -44,6 +46,12 @@ begin
      or new.vigencia_hasta is distinct from old.vigencia_hasta then
     raise exception 'una orden no puede modificarse, solo cambia de estado';
   end if;
+  -- Máquina de estados: pendiente -> tomada | vencida | cancelada ; tomada -> hecha | rechazada | vencida. Los estados finales
+  -- no cambian y nadie reescribe el mismo estado (p. ej. pisar tomada_at o el resultado de una orden ya tomada).
+  if not ((old.estado = 'pendiente' and new.estado in ('tomada','vencida','cancelada'))
+          or (old.estado = 'tomada' and new.estado in ('hecha','rechazada','vencida'))) then
+    raise exception 'transición de estado inválida: % -> %', old.estado, new.estado;
+  end if;
   if (select auth.uid()) is not null and not factory.tiene_rol('pc')
      and (new.tomada_at is distinct from old.tomada_at or new.resuelta_at is distinct from old.resuelta_at
           or new.resultado is distinct from old.resultado) then
@@ -51,6 +59,26 @@ begin
   end if;
   return new;
 end $$;
+revoke all on function factory.orden_inmutable() from public;
+
+-- F-02: el tope de 50 vigentes se hace cumplir en el trigger de alta (volátil, con lock): ni un insert de varias filas en una
+-- sola sentencia ni altas en paralelo lo superan. La policy de insert conserva su chequeo (defensa en profundidad).
+create or replace function factory.orden_al_crear() returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  perform pg_advisory_xact_lock(hashtext('factory.ordenes.alta'));
+  if (select count(*) from factory.ordenes where estado = 'pendiente' and vigencia_hasta > now()) >= 50 then
+    raise exception 'hay 50 órdenes pendientes vigentes: esperá a que la PC las procese';
+  end if;
+  new.creada_por := (select lower(u.email) from auth.users u where u.id = (select auth.uid()));
+  new.creada_at := now();
+  new.tomada_at := null;
+  new.resuelta_at := null;
+  new.resultado := null;
+  return new;
+end $$;
+revoke all on function factory.orden_al_crear() from public;
 
 -- S10: el conteo solo lo ve un miembro (la policy de insert lo llama como admin).
 create or replace function factory.cantidad_pendientes() returns integer
