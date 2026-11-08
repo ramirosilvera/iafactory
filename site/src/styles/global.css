@@ -929,3 +929,7 @@ body.marca-fabrica {
 .fab-fila-acc .btn { min-height: 44px; }
 .fab-sub { color: var(--text-muted); font-size: 0.85rem; }
 .fab-confirmar { position: sticky; bottom: 0.75rem; border: 2px solid var(--accent); box-shadow: var(--shadow-elevada); z-index: 5; }
+
+.fab-auditoria{margin:.5rem 0 0}
+.fab-auditoria summary{cursor:pointer;margin:.35rem 0;padding:.4rem 0;min-height:44px;display:flex;align-items:center}
+.fab-paso{margin:.6rem 0 0;padding:.5rem .7rem;border-left:3px solid var(--accent,#a05a2c);background:rgba(160,90,44,.08);border-radius:6px}
