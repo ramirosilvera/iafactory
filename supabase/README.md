@@ -4,12 +4,12 @@ El proyecto Supabase `iafactory` aloja el schema `factory`: la base del
 tablero remoto de la IA Factory. Este directorio versiona su esquema.
 
 > Historial: el proyecto alojó antes otra app (schema `armario`) que ya no
-> existe; sus migraciones 0001–0037 se eliminaron del repo. El schema
-> `armario` puede seguir en la base hasta que se borre con una migración
-> explícita (ver "Pendiente").
+> existe. Sus migraciones 0001–0037 se eliminaron del repo y `0042` borró el
+> schema; el bucket de fotos se borró a mano desde Storage (2026-11-07).
 
 ## Migraciones (`migrations/`, en orden)
 
+- **`0042_drop_armario.sql`** — borra el schema `armario` y su policy de Storage; deja `pgrst.db_schemas = 'public, factory'`.
 - **`0038_factory_schema.sql`** / **`0039_factory_ordenes_y_limites.sql`** —
   schema `factory`: tablero remoto de la IA Factory (latido, foto de estado,
   eventos y órdenes). Acceso por lista de emails **confirmados**
@@ -58,9 +58,3 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/migrations/0038_factory_s
 *Confirm email* activo y registro de usuarios cerrado (lo aplica y verifica
 `proteger-auth.cmd` en la PC). Las Redirect URLs de Auth deben incluir
 `https://ramirosilvera.github.io/iafactory/`.
-
-## Pendiente
-
-- Borrar el schema `armario` (y el bucket `armario-fotos`) de la base real y
-  dejar `pgrst.db_schemas = 'public, factory'`: irreversible, requiere
-  confirmación explícita del dueño.
