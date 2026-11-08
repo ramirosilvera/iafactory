@@ -226,3 +226,20 @@ describe("pilares medidos de verdad", () => {
     expect(leerPrivacidad(undefined)).toBeNull();
   });
 });
+
+import { esSesionVencida } from "./fabrica";
+describe("sesión y permisos (S7)", () => {
+  it("un JWT vencido no se confunde con falta de permisos", () => {
+    expect(esSesionVencida("JWT expired")).toBe(true);
+    expect(esErrorDePermiso("JWT expired")).toBe(false);
+    expect(esErrorDePermiso("permission denied for schema factory")).toBe(true);
+    expect(esSesionVencida("permission denied for schema factory")).toBe(false);
+  });
+  it("privacidad: intentos fallidos a la nube dejan el pilar en aviso", () => {
+    const ej = { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never;
+    const priv = leerPrivacidad({ leido: true, dias: 7, total: 2, enmascaradas: 1, locales: 1, expuestas: 0, fallidasNube: 3 });
+    const r = calcularPilares([], ej, [], [], 0, Date.now(), priv);
+    expect(r[4].tono).toBe("warn");
+    expect(r[4].detalle).toMatch(/3 intentos fallidos/);
+  });
+});

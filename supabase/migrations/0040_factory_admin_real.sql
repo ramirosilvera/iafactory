@@ -1,4 +1,4 @@
--- La cuenta del dueño es ra1990@hotmail.com (la única no-PC del proyecto). 0038 sembraba otro email que
--- no tiene cuenta; se lo reemplaza para que el rol 'admin' quede en la cuenta real. Idempotente.
-insert into factory.acceso (email, rol) values ('ra1990@hotmail.com', 'admin') on conflict (email) do nothing;
-delete from factory.acceso where email = 'raa1990.rs@gmail.com' and rol = 'admin';
+-- (Sin efecto) Esta migración sembraba un admin con otro email y borraba al real. Quedó superada por 0041 y, como el CI
+-- reaplica las migraciones en orden, ejecutarla dejaba al dueño sin rol admin durante unos segundos (y para siempre si
+-- 0041 fallaba). Ahora no hace nada; el admin lo fija 0038/0041.
+select 1;

@@ -1,4 +1,4 @@
--- Prueba de seguridad del schema `factory` (RLS). Se corre contra un Postgres con las migraciones 0038 y 0039 aplicadas (y 0038 se puede reaplicar sola)
+-- Prueba de seguridad del schema `factory` (RLS). Se corre contra un Postgres con las migraciones 0038 a 0043 aplicadas (y 0038 se puede reaplicar sola)
 -- (y los objetos mínimos de Supabase: schema auth, roles anon/authenticated). Todo ocurre dentro de una transacción
 -- que se deshace al final: no deja datos. Falla (ON_ERROR_STOP) si alguna barrera no se cumple.
 --   psql "$URL" -v ON_ERROR_STOP=1 -f supabase/tests/factory_rls.sql
@@ -164,6 +164,44 @@ begin
   alter table factory.ordenes enable trigger orden_inmutable;
   perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
   insert into factory.ordenes (accion, vigencia_hasta) values ('auditar', now() + interval '1 hour');
+  perform pg_temp.vuelvo();
+end $$;
+
+-- 6) Endurecimiento 0043 (S1, S9, S10, S12, S13)
+do $$
+declare n int;
+begin
+  -- orden vencida "en el servidor": la PC no puede tomarla aunque su reloj esté atrasado
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
+  insert into factory.ordenes (id, accion, vigencia_hasta) values ('33333333-3333-3333-3333-333333333333', 'auditar', now() + interval '1 hour');
+  perform pg_temp.vuelvo();
+  alter table factory.ordenes disable trigger orden_inmutable;
+  update factory.ordenes set vigencia_hasta = now() - interval '1 minute' where id = '33333333-3333-3333-3333-333333333333';
+  alter table factory.ordenes enable trigger orden_inmutable;
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000b1');
+  perform pg_temp.debe_fallar($q$update factory.ordenes set estado = 'tomada' where id = '33333333-3333-3333-3333-333333333333'$q$, 'S1: la PC toma una orden vencida');
+  perform pg_temp.vuelvo();
+  -- S9: el admin no escribe resultado al cancelar
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
+  insert into factory.ordenes (id, accion, vigencia_hasta) values ('44444444-4444-4444-4444-444444444444', 'auditar', now() + interval '1 hour');
+  perform pg_temp.debe_fallar($q$update factory.ordenes set estado = 'cancelada', resultado = 'Hecha: todo ok' where id = '44444444-4444-4444-4444-444444444444'$q$, 'S9: admin escribe resultado');
+  update factory.ordenes set estado = 'cancelada' where id = '44444444-4444-4444-4444-444444444444';
+  -- S12: el admin quedó atado a su id; otro usuario con ese email sin confirmar sigue sin acceso
+  perform pg_temp.vuelvo();
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000c1');
+  -- S10: un usuario sin rol no ve el conteo
+  if factory.cantidad_pendientes() <> 0 then raise exception 'S10: intruso ve el conteo de pendientes'; end if;
+  perform pg_temp.vuelvo();
+  -- S13: la PC puede borrar estado; el admin no
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000a1');
+  delete from factory.estado where clave = 'cuotas';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'S13: el admin borró estado'; end if;
+  perform pg_temp.vuelvo();
+  perform pg_temp.como('00000000-0000-0000-0000-0000000000b1');
+  delete from factory.estado where clave = 'cuotas';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'S13: la PC no pudo borrar estado'; end if;
   perform pg_temp.vuelvo();
 end $$;
 
