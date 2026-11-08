@@ -14,6 +14,7 @@ import {
   estadoVisible,
   leerCola,
   leerCuotas,
+  proveedoresDe,
   leerEjecutor,
   leerPc,
   leerResumen,
@@ -73,12 +74,26 @@ describe("lectura tolerante de lo que publica la PC", () => {
       { id: "a", nombre: "a", nota: 90, grado: null, pendientes: 2, sensibilidad: null },
     ]);
   });
+  it("cuotas por proveedor: un enfriamiento cuenta una sola vez aunque el proveedor tenga varios modelos", () => {
+    const hasta = new Date(AHORA + 3600_000).toISOString();
+    const c = leerCuotas({ rutas: [
+      { ruta: "ag/a", proveedor: "ag", roles: ["orchestrator"], usado: 2, hasta },
+      { ruta: "ag/b", proveedor: "ag", roles: ["tester"], usado: 2, hasta },
+      { ruta: "g/x", proveedor: "g", roles: ["docs"], usado: null, hasta: null },
+    ] });
+    expect(c[0].roles).toEqual(["orchestrator"]);
+    expect(proveedoresDe(c, AHORA)).toEqual([
+      { nombre: "ag", modelos: 2, enfriando: true, hasta },
+      { nombre: "g", modelos: 1, enfriando: false, hasta: null },
+    ]);
+  });
+
   it("cuotas y porcentaje", () => {
     const c = leerCuotas({ rutas: [{ ruta: "x", usado: 25, limite: 100 }, { ruta: "y" }, {}] });
     expect(c).toHaveLength(2);
     expect(porcentajeCuota(c[0])).toBe(25);
     expect(porcentajeCuota(c[1])).toBeNull();
-    expect(porcentajeCuota({ ruta: "z", usado: 300, limite: 100, hasta: null })).toBe(100);
+    expect(porcentajeCuota({ ruta: "z", proveedor: "z", roles: [], usado: 300, limite: 100, hasta: null })).toBe(100);
   });
   it("ejecutor: valores por defecto seguros", () => {
     expect(leerEjecutor(undefined)).toEqual({ activo: false, pausadoProyectos: [], proyectos: [], ultima: null });
@@ -147,7 +162,7 @@ describe("presentación", () => {
   });
   it("atención: pausado, persona, sin cupo y error de las últimas 24 h", () => {
     const ej = leerEjecutor({ proyectos: [{ id: "a", habilitado: true, pausado: "3 fallos", necesitaPersona: 2 }] });
-    const cuotas = [{ ruta: "x", usado: null, limite: null, hasta: new Date(AHORA + 3600_000).toISOString() }, { ruta: "y", usado: 1, limite: null, hasta: new Date(AHORA - 1000).toISOString() }];
+    const cuotas = [{ ruta: "x", proveedor: "x", roles: [], usado: null, limite: null, hasta: new Date(AHORA + 3600_000).toISOString() }, { ruta: "y", proveedor: "y", roles: [], usado: 1, limite: null, hasta: new Date(AHORA - 1000).toISOString() }];
     const ev = [{ nivel: "error", ts: new Date(AHORA - 3600_000).toISOString(), proyecto: null, titulo: "Se cayó" }, { nivel: "error", ts: new Date(AHORA - 3 * 86_400_000).toISOString(), proyecto: null, titulo: "viejo" }];
     const a = calcularAtencion(P, ej, cuotas, ev, AHORA);
     expect(a.map((x) => x.tipo)).toEqual(["pausado", "persona", "sin_cupo", "error"]);
@@ -196,7 +211,7 @@ describe("pilares", () => {
   ] } as never;
   const ps = [{ id: "a", nombre: "A", nota: 80, grado: "B", pendientes: 1, sensibilidad: "P3" }, { id: "b", nombre: "B", nota: 60, grado: "C", pendientes: 0, sensibilidad: null }];
   it("devuelve 7 pilares con datos vivos", () => {
-    const r = calcularPilares(ps, ej, [{ ruta: "x", usado: 1, limite: null, hasta: null }], [], 0, Date.now());
+    const r = calcularPilares(ps, ej, [{ ruta: "x", proveedor: "x", roles: [], usado: 1, limite: null, hasta: null }], [], 0, Date.now());
     expect(r).toHaveLength(7);
     expect(r[0].valor).toBe("1/2");
     expect(r[4].valor).toBe("—");
