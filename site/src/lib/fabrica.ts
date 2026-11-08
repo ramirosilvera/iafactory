@@ -301,3 +301,57 @@ export function accionEjecutor(e: EjecutorProyecto | undefined): { accion: "paus
 export function esErrorDePermiso(mensaje: string): boolean {
   return /permission denied|42501|row-level security|not allowed|JWT/i.test(mensaje);
 }
+
+/* ───────────── auditoría: qué encontró y qué hacer ───────────── */
+
+export interface Hallazgo {
+  id: string;
+  sev: "alta" | "media" | "baja" | "info";
+  cat: string;
+  titulo: string;
+  sugerencia: string;
+  nuevo: boolean;
+}
+export interface Auditoria {
+  cuando: string;
+  nota: number | null;
+  grado: string | null;
+  conteos: { alta: number; media: number; baja: number; info: number };
+  tendencia: { delta: number | null; nuevos: number; resueltos: number };
+  total: number;
+  hallazgos: Hallazgo[];
+}
+
+const SEVS = ["alta", "media", "baja", "info"] as const;
+
+export function leerAuditoria(valor: unknown): Auditoria | null {
+  const o = obj(valor);
+  if (!str(o.cuando)) return null;
+  const c = obj(o.conteos);
+  const t = obj(o.tendencia);
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    cuando: str(o.cuando),
+    nota: typeof o.nota === "number" ? o.nota : null,
+    grado: str(o.grado) || null,
+    conteos: { alta: n(c.alta), media: n(c.media), baja: n(c.baja), info: n(c.info) },
+    tendencia: { delta: typeof t.delta === "number" ? t.delta : null, nuevos: n(t.nuevos), resueltos: n(t.resueltos) },
+    total: n(o.total),
+    hallazgos: arr(o.hallazgos)
+      .map((h) => obj(h))
+      .filter((h) => (SEVS as readonly string[]).includes(str(h.sev)))
+      .map((h) => ({ id: str(h.id), sev: str(h.sev) as Hallazgo["sev"], cat: str(h.cat), titulo: str(h.titulo), sugerencia: str(h.sugerencia), nuevo: h.nuevo === true })),
+  };
+}
+
+/** Una frase con lo primero que conviene hacer según lo que encontró la auditoría y lo que espera en la cola. */
+export function proximoPaso(a: Auditoria | null, tareasEsperando: number, necesitaPersona: number): string {
+  if (!a) return "Todavía no hay una auditoría guardada: tocá “Auditar ahora”.";
+  if (necesitaPersona > 0) return `Hay ${necesitaPersona} tarea${necesitaPersona === 1 ? "" : "s"} que necesita${necesitaPersona === 1 ? "" : "n"} a una persona: revisalas primero.`;
+  if (a.conteos.alta > 0) return `Resolvé primero ${a.conteos.alta === 1 ? "el hallazgo alto" : `los ${a.conteos.alta} hallazgos altos`}; son los que más pesan en la nota.`;
+  if (tareasEsperando > 0) return `Hay ${tareasEsperando} tarea${tareasEsperando === 1 ? "" : "s"} esperando: aprobalas o descartalas, o dejá que el ejecutor las tome.`;
+  if (a.conteos.media > 0) return `Sin altos. Quedan ${a.conteos.media} hallazgo${a.conteos.media === 1 ? "" : "s"} medio${a.conteos.media === 1 ? "" : "s"}: pedí “Armar plan” para convertirlos en tareas.`;
+  return "Sin hallazgos importantes. No hace falta hacer nada.";
+}
+
+export const SEV_LABEL: Record<string, string> = { alta: "Alta", media: "Media", baja: "Baja", info: "Info" };

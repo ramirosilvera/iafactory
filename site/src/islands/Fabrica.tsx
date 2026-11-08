@@ -6,6 +6,9 @@ import {
   antiguedadTexto,
   calcularAtencion,
   esErrorDePermiso,
+  leerAuditoria,
+  proximoPaso,
+  SEV_LABEL,
   fechaCorta,
   nombreDe,
   resultadoTexto,
@@ -268,6 +271,7 @@ export default function Fabrica() {
         const cola = leerCola(estado[`cola:${p.id}`]?.valor);
         const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
         const ae = accionEjecutor(ej);
+        const aud = leerAuditoria(estado[`auditoria:${p.id}`]?.valor);
         return (
           <section key={p.id} className="card fab-proyecto" aria-label={p.nombre}>
             <div className="fab-cab">
@@ -286,6 +290,36 @@ export default function Fabrica() {
               {ej && <span className="fab-chip">{ej.hechasHoy} hecha{ej.hechasHoy === 1 ? "" : "s"} hoy</span>}
             </div>
             {ej?.pausado && <p className="fab-sub" style={{ margin: "0.4rem 0 0" }}>Motivo: {ej.pausado}</p>}
+            {aud && (
+              <div className="fab-auditoria">
+                <div className="fab-sub">
+                  Última auditoría ({antiguedadTexto(aud.cuando, ahora)}): {aud.conteos.alta} alta{aud.conteos.alta === 1 ? "" : "s"}, {aud.conteos.media} media
+                  {aud.conteos.media === 1 ? "" : "s"}, {aud.conteos.baja} baja{aud.conteos.baja === 1 ? "" : "s"}
+                  {aud.tendencia.delta !== null && aud.tendencia.delta !== 0 ? ` · ${aud.tendencia.delta > 0 ? "+" : ""}${aud.tendencia.delta} puntos vs. la anterior` : ""}
+                  {aud.tendencia.nuevos > 0 ? ` · ${aud.tendencia.nuevos} nuevo${aud.tendencia.nuevos === 1 ? "" : "s"}` : ""}
+                </div>
+                {aud.hallazgos.length > 0 && (
+                  <details>
+                    <summary>Qué encontró ({aud.total})</summary>
+                    <ul className="fab-filas">
+                      {aud.hallazgos.map((h) => (
+                        <li key={h.id}>
+                          <span>
+                            <strong>{SEV_LABEL[h.sev]}</strong>
+                            {h.nuevo ? " · nuevo" : ""} — {h.titulo}
+                          </span>
+                          {h.sugerencia && <span className="fab-sub">Qué hacer: {h.sugerencia}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                    {aud.total > aud.hallazgos.length && <p className="fab-sub">Se muestran los {aud.hallazgos.length} más importantes de {aud.total}.</p>}
+                  </details>
+                )}
+              </div>
+            )}
+            <p className="fab-paso">
+              <strong>Próximo paso:</strong> {proximoPaso(aud, cola.length, ej?.necesitaPersona ?? 0)}
+            </p>
             <div className="fab-botones">
               <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: ae.accion })}>
                 {ae.label}

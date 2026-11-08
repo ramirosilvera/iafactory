@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCION_LABEL,
+  leerAuditoria,
+  proximoPaso,
   accionEjecutor,
   calcularAtencion,
   esErrorDePermiso,
@@ -161,5 +163,27 @@ describe("presentación", () => {
   it("distingue error de permisos de otros", () => {
     expect(esErrorDePermiso("permission denied for schema factory")).toBe(true);
     expect(esErrorDePermiso("Failed to fetch")).toBe(false);
+  });
+});
+
+describe("auditoría legible", () => {
+  const A = { cuando: "2026-11-08T01:20:55Z", nota: 88, grado: "B", conteos: { alta: 0, media: 3, baja: 0, info: 4 }, tendencia: { delta: 0, nuevos: 0, resueltos: 0 }, total: 7, hallazgos: [{ id: "a", sev: "media", cat: "x", titulo: "t", sugerencia: "s", nuevo: true }, { id: "b", sev: "rara", titulo: "no" }] };
+  it("lee, filtra severidades raras y tolera basura", () => {
+    const a = leerAuditoria(A)!;
+    expect(a.nota).toBe(88);
+    expect(a.hallazgos.map((h) => h.id)).toEqual(["a"]);
+    expect(a.hallazgos[0].nuevo).toBe(true);
+    expect(leerAuditoria(null)).toBeNull();
+    expect(leerAuditoria({ nota: 5 })).toBeNull();
+    expect(leerAuditoria({ cuando: "x", conteos: "mal", hallazgos: 7 })!.hallazgos).toEqual([]);
+  });
+  it("próximo paso: prioriza persona > altos > tareas > medios > nada", () => {
+    const a = leerAuditoria(A)!;
+    expect(proximoPaso(null, 0, 0)).toMatch(/Auditar ahora/);
+    expect(proximoPaso(a, 2, 1)).toMatch(/necesita a una persona|necesitan a una persona|necesita/);
+    expect(proximoPaso({ ...a, conteos: { ...a.conteos, alta: 2 } }, 5, 0)).toMatch(/2 hallazgos altos/);
+    expect(proximoPaso(a, 2, 0)).toMatch(/2 tareas esperando/);
+    expect(proximoPaso(a, 0, 0)).toMatch(/Armar plan/);
+    expect(proximoPaso({ ...a, conteos: { alta: 0, media: 0, baja: 0, info: 4 } }, 0, 0)).toMatch(/No hace falta/);
   });
 });
