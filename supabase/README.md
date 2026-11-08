@@ -9,6 +9,11 @@ tablero remoto de la IA Factory. Este directorio versiona su esquema.
 
 ## Migraciones (`migrations/`, en orden)
 
+- **`0043_factory_endurecimiento.sql`** — estado FINAL de seguridad (la última migración manda): la vigencia de una orden la
+  exige el servidor al tomarla; solo la PC escribe el resultado de una orden; el conteo de pendientes solo lo ve un miembro;
+  el rol admin queda atado al id de su usuario; la PC puede borrar claves de estado viejas; las órdenes siguen una máquina de estados (pendiente → tomada → hecha/rechazada/vencida, sin saltos ni reescrituras) y el tope de 50 pendientes vigentes se aplica en el trigger de alta (con lock), incluso para altas masivas o en paralelo. **Si recreás la cuenta admin**,
+  corré de nuevo el workflow de migraciones (re-ata el admin al usuario nuevo). `0040` quedó sin efecto a propósito.
+
 - **`0042_drop_armario.sql`** — borra el schema `armario` y su policy de Storage; deja `pgrst.db_schemas = 'public, factory'`.
 - **`0038_factory_schema.sql`** / **`0039_factory_ordenes_y_limites.sql`** —
   schema `factory`: tablero remoto de la IA Factory (latido, foto de estado,

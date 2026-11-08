@@ -299,7 +299,11 @@ export function accionEjecutor(e: EjecutorProyecto | undefined): { accion: "paus
 
 /** ¿El error de lectura es de permisos (cuenta sin acceso) y no de conexión o de migración pendiente? */
 export function esErrorDePermiso(mensaje: string): boolean {
-  return /permission denied|42501|row-level security|not allowed|JWT/i.test(mensaje);
+  return !esSesionVencida(mensaje) && /permission denied|42501|row-level security|not allowed/i.test(mensaje);
+}
+/** El token venció y no se pudo renovar: hay que volver a entrar (no es un problema de permisos). */
+export function esSesionVencida(mensaje: string): boolean {
+  return /jwt expired|invalid jwt|PGRST30[123]|JWT/i.test(mensaje);
 }
 
 /* ───────────── auditoría: qué encontró y qué hacer ───────────── */
@@ -378,13 +382,15 @@ export interface Privacidad {
   enmascaradas: number;
   locales: number;
   expuestas: number;
+  /** intentos fallidos a rutas de nube: pudieron enviar el texto antes de fallar; no se sabe si iba enmascarado */
+  fallidasNube: number;
 }
 /** Lee la medición de privacidad publicada por la PC; null si no existe o no se pudo leer el log. */
 export function leerPrivacidad(valor: unknown): Privacidad | null {
   const o = obj(valor);
   if (o.leido !== true) return null;
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
-  return { dias: n(o.dias) || 7, total: n(o.total), enmascaradas: n(o.enmascaradas), locales: n(o.locales), expuestas: n(o.expuestas) };
+  return { dias: n(o.dias) || 7, total: n(o.total), enmascaradas: n(o.enmascaradas), locales: n(o.locales), expuestas: n(o.expuestas), fallidasNube: n(o.fallidasNube) };
 }
 
 export function calcularPilares(
@@ -437,11 +443,11 @@ export function calcularPilares(
     {
       n: 5, clave: "privacidad", nombre: "Privacidad P3", lema: "Datos enmascarados",
       valor: privacidad ? (privacidad.total === 0 ? "0" : `${privacidad.total - privacidad.expuestas}/${privacidad.total}`) : "—",
-      unidad: privacidad ? (privacidad.total === 0 ? `consultas P3 en ${privacidad.dias} días` : `consultas P3 protegidas (${privacidad.dias} días)`) : "esperando datos de la PC",
+      unidad: privacidad ? (privacidad.total === 0 ? `consultas clasificadas P3 en ${privacidad.dias} días` : `consultas clasificadas P3 protegidas (${privacidad.dias} días)`) : "esperando datos de la PC",
       detalle: privacidad
-        ? `${privacidad.enmascaradas} salieron enmascaradas · ${privacidad.locales} se quedaron en la PC · ${privacidad.expuestas} sin protección. ${p3} ${s(p3, "proyecto sensible", "proyectos sensibles")}.`
+        ? `${privacidad.enmascaradas} salieron enmascaradas · ${privacidad.locales} se quedaron en la PC · ${privacidad.expuestas} sin protección${privacidad.fallidasNube ? ` · ${privacidad.fallidasNube} intentos fallidos a la nube sin confirmar` : ""}. Mide solo lo que el clasificador marcó P3.`
         : `${p3} ${s(p3, "proyecto con datos sensibles", "proyectos con datos sensibles")}. Lo sensible se queda en la PC o sale enmascarado.`,
-      tono: !privacidad ? "neutro" : privacidad.expuestas > 0 ? "mal" : "ok",
+      tono: !privacidad ? "neutro" : privacidad.expuestas > 0 ? "mal" : privacidad.fallidasNube > 0 ? "warn" : "ok",
     },
     {
       n: 6, clave: "experiencia", nombre: "Experiencia", lema: "Simple e intuitiva",

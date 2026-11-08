@@ -8,6 +8,7 @@ import {
   calcularPilares,
   saludGeneral,
   esErrorDePermiso,
+  esSesionVencida,
   leerAuditoria,
   proximoPaso,
   SEV_LABEL,
@@ -76,6 +77,7 @@ export default function Fabrica() {
   const hayDatosRef = useRef(false);
   const realtimeOkRef = useRef(false);
   const [refrescoFallo, setRefrescoFallo] = useState("");
+  const [sesionVencida, setSesionVencida] = useState(false);
 
   const cargar = useCallback(async () => {
     const n = ++pedidoRef.current;
@@ -87,6 +89,12 @@ export default function Fabrica() {
     ]);
     if (n !== pedidoRef.current) return;
     const fallo = h.error || e.error || ev.error || o.error;
+    if (fallo && esSesionVencida(fallo.message)) {
+      // S7: el token venció y no se pudo renovar: se pide volver a entrar (no es un problema de permisos)
+      setSesionVencida(true);
+      setSesion("no");
+      return;
+    }
     if (fallo) {
       // R6: con datos ya cargados, un error pasajero no tira abajo el tablero: se avisa y se sigue mostrando lo último
       if (hayDatosRef.current) setRefrescoFallo(fallo.message);
@@ -111,10 +119,24 @@ export default function Fabrica() {
       setEmail(data.session?.user.email ?? null);
       if (data.session) void cargar();
     });
+    // S7: si la sesión se cierra (en otra pestaña o porque no se pudo renovar), se vuelve a la pantalla de entrada
+    const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
+      if (cerrado || evento !== "SIGNED_OUT") return;
+      setSesion("no");
+      setEmail(null);
+    });
     return () => {
       cerrado = true;
+      sub.subscription.unsubscribe();
     };
   }, [cargar]);
+
+  async function salir() {
+    await supabase.auth.signOut({ scope: "local" });
+    setSesionVencida(false);
+    setSesion("no");
+    setEmail(null);
+  }
 
   // tiempo real: cualquier cambio en las 4 tablas recarga; el reloj interno recalcula "en vivo / apagada" cada 15 s
   useEffect(() => {
@@ -170,9 +192,10 @@ export default function Fabrica() {
   }
 
   async function cancelarOrden(id: string) {
-    const { error: e } = await fab().from("ordenes").update({ estado: "cancelada" }).eq("id", id).eq("estado", "pendiente");
-    setAviso(e ? `No se pudo cancelar: ${e.message}` : "Orden cancelada.");
-    if (!e) void cargar();
+    // S6: sin .select() un UPDATE que RLS deja en 0 filas (la PC ya la tomó) no da error: se verifica que cambió de verdad
+    const { data, error: e } = await fab().from("ordenes").update({ estado: "cancelada" }).eq("id", id).eq("estado", "pendiente").select("id");
+    setAviso(e ? `No se pudo cancelar: ${e.message}` : data && data.length > 0 ? "Orden cancelada." : "No se pudo cancelar: la PC ya la tomó o venció.");
+    void cargar();
   }
 
   if (!SUPABASE_CONFIGURADO) return <ConfigWarning />;
@@ -180,7 +203,7 @@ export default function Fabrica() {
   if (sesion === "no") {
     return (
       <div className="card empty-state">
-        <p>Entrá con tu cuenta para ver la fábrica.</p>
+        <p>{sesionVencida ? "Tu sesión venció. Volvé a entrar para seguir." : "Entrá con tu cuenta para ver la fábrica."}</p>
         <a className="btn btn-primary" href={`${import.meta.env.BASE_URL}login/`}>
           Entrar
         </a>
@@ -236,11 +259,16 @@ export default function Fabrica() {
             <span>Centro de control</span>
           </div>
         </div>
+        <div className="app-der">
         <div className={`pill-estado ${modo}`} role="status">
           <span className="fab-punto" aria-hidden="true" />
           {modo === "vivo" && <>PC en vivo · latido {antiguedadTexto(latido?.visto_at, ahora)}</>}
           {modo === "apagada" && <>PC sin conexión · foto de {antiguedadTexto(fotoDe, ahora)}</>}
           {modo === "sin_datos" && <>Sin datos todavía</>}
+        </div>
+        <button type="button" className="btn btn-secondary btn-chico" onClick={() => void salir()}>
+          Salir
+        </button>
         </div>
       </header>
 
