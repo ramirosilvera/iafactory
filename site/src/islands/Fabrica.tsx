@@ -18,6 +18,7 @@ import {
   estadoVisible,
   leerCola,
   leerColaTotal,
+  leerSinResolver,
   leerCuotas,
   leerPrivacidad,
   leerEjecutor,
@@ -291,13 +292,14 @@ export default function Fabrica() {
   const hechasHoy = ejecutor.proyectos.reduce((n, e) => n + e.hechasHoy, 0);
   const ordenesEnCola = ordenes.filter((o) => estadoVisible(o, ahora) === "pendiente").length;
   const CIRC = 2 * Math.PI * 52;
-  const paraAprobar = proyectos.reduce((n, p) => n + leerColaTotal(estado[`cola:${p.id}`]?.valor), 0);
+  const paraAprobar = proyectos.reduce((n, p) => n + leerColaTotal(estado[`cola:${p.id}`]?.valor) + leerSinResolver(estado[`cola:${p.id}`]?.valor).total, 0);
 
   const acciones = (p: (typeof proyectos)[number]) => {
     const ej = ejecutor.proyectos.find((x) => x.id === p.id);
     const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
     const cola = leerCola(estado[`cola:${p.id}`]?.valor);
-    return { ej, base, ae: accionEjecutor(ej), cola, totalCola: leerColaTotal(estado[`cola:${p.id}`]?.valor) };
+    const sr = leerSinResolver(estado[`cola:${p.id}`]?.valor);
+    return { ej, base, ae: accionEjecutor(ej), cola, totalCola: leerColaTotal(estado[`cola:${p.id}`]?.valor) + sr.total };
   };
 
   return (
@@ -452,7 +454,7 @@ export default function Fabrica() {
                       <strong>{p.nombre}</strong>
                       <span className={`fab-nota ${p.grado ?? ""}`}>{p.nota !== null ? `${p.nota}${p.grado ? ` · ${p.grado}` : ""}` : "sin nota"}</span>
                       {ej?.pausado && <span className="fab-chip mal">pausado</span>}
-                      {cola.length > 0 && <button type="button" className="btn btn-primary btn-chico btn-aprobar" onClick={() => irA("proyectos")}>Aprobar {totalCola}</button>}
+                      {totalCola > 0 && <button type="button" className="btn btn-primary btn-chico btn-aprobar" onClick={() => irA("proyectos")}>Revisar {totalCola}</button>}
                     </div>
                     <div className="fab-botones">
                       <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: ae.accion })}>{ae.label}</button>
@@ -502,6 +504,7 @@ export default function Fabrica() {
         const ej = ejecutor.proyectos.find((x) => x.id === p.id);
         const cola = leerCola(estado[`cola:${p.id}`]?.valor);
         const totalCola = leerColaTotal(estado[`cola:${p.id}`]?.valor);
+        const sinRes = leerSinResolver(estado[`cola:${p.id}`]?.valor);
         const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
         const ae = accionEjecutor(ej);
         const aud = leerAuditoria(estado[`auditoria:${p.id}`]?.valor);
@@ -586,6 +589,32 @@ export default function Fabrica() {
                 </ul>
               </>
             )}
+            {sinRes.items.length > 0 && (
+              <>
+                <div className="fab-sub">
+                  Sin resolver: requieren tu autorización o revisión{sinRes.total > sinRes.items.length ? ` (se muestran ${sinRes.items.length} de ${sinRes.total})` : ""}
+                </div>
+                <ul className="fab-filas">
+                  {sinRes.items.map((t) => (
+                    <li key={t.id}>
+                      <span>
+                        {t.titulo} <span className="fab-sub">({t.sev}{t.intentos ? `, ${t.intentos} intento${t.intentos === 1 ? "" : "s"}` : ""})</span>
+                        {t.motivo && <span className="fab-sub fab-motivo">{t.motivo}</span>}
+                      </span>
+                      <div className="fab-fila-acc">
+                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
+                          Autorizar y reintentar
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
+                          Descartar
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {sinRes.enviadas > 0 && <p className="fab-sub">{sinRes.enviadas} tarea{sinRes.enviadas === 1 ? "" : "s"} en manos del ejecutor o del agente.</p>}
           </section>
         );
       })}

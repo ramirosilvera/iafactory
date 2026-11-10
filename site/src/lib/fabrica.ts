@@ -129,6 +129,16 @@ export interface TareaCola {
   sev: string;
   cat: string;
 }
+/** Tarea que el ejecutor no pudo cerrar: espera una autorización o revisión (en la PC: «Autorizar y reintentar»). */
+export interface TareaSinResolver extends TareaCola {
+  motivo: string;
+  intentos: number;
+}
+export interface ColaSinResolver {
+  items: TareaSinResolver[];
+  total: number;
+  enviadas: number;
+}
 export interface EstadoPc {
   tablero: boolean;
   ordenes: boolean;
@@ -215,6 +225,16 @@ export function leerCola(valor: unknown): TareaCola[] {
     .map((i) => obj(i))
     .filter((i) => ID_ITEM.test(str(i.id)))
     .map((i) => ({ id: str(i.id), titulo: str(i.titulo), sev: str(i.sev), cat: str(i.cat) }));
+}
+
+export function leerSinResolver(valor: unknown): ColaSinResolver {
+  const o = obj(valor);
+  const sr = obj(o.sinResolver);
+  const items = arr(sr.items)
+    .map((i) => obj(i))
+    .filter((i) => ID_ITEM.test(str(i.id)))
+    .map((i) => ({ id: str(i.id), titulo: str(i.titulo), sev: str(i.sev), cat: str(i.cat), motivo: str(i.motivo), intentos: num(i.intentos) ?? 0 }));
+  return { items, total: num(sr.total) ?? items.length, enviadas: num(o.enviadas) ?? 0 };
 }
 
 /** Total real de tareas esperando (la foto publica solo las primeras 20). */

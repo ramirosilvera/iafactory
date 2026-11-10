@@ -299,3 +299,4 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .modelos li > div:first-child { display: grid; gap: 0.1rem; min-width: 0; word-break: break-word; }
 .modelos-der { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .modelos-der .fab-chip { margin: 0; }
+.fab-motivo { display: block; margin-top: 0.15rem; word-break: break-word; }
