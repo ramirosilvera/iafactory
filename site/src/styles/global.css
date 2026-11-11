@@ -313,3 +313,8 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .fab-spin { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 0.35em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -0.1em; animation: fab-giro 0.8s linear infinite; }
 @keyframes fab-giro { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .fab-spin { animation: none; } }
+
+/* Botón Actualizar del encabezado */
+.btn-actualizar:disabled { opacity: 1; cursor: progress; }
+.btn-actualizar.girando svg { animation: fab-giro 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .btn-actualizar.girando svg { animation: none; } }
