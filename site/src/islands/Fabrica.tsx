@@ -333,6 +333,11 @@ export default function Fabrica() {
   // «Autorizar todo» en curso: hay órdenes aprobar_todo sin terminar (esperando a la PC o ejecutándose).
   const enCurso = new Set(ordenes.filter((o) => o.accion === "aprobar_todo" && ["pendiente", "tomada"].includes(estadoVisible(o, ahora))).map((o) => String(o.params?.id ?? "")));
   const autorizando = enCurso.size > 0;
+  // Si la última orden «Autorizar todo» (de los últimos 30 min) chocó con el tope diario, se avisa por qué siguen pendientes.
+  const ultimaTodo = ordenes.find((o) => o.accion === "aprobar_todo" && ahora - Date.parse(o.creada_at) < 30 * 60_000);
+  const avisoTope = !autorizando && ultimaTodo?.estado === "hecha" && /tope diario/i.test(String((ultimaTodo as { resultado?: string }).resultado ?? ""))
+    ? "Tope diario de envíos alcanzado: las que quedan pendientes se pueden autorizar mañana (se libera a medianoche)."
+    : "";
   const autorizarTodo = () =>
     pedir({
       accion: "aprobar_todo",
@@ -347,6 +352,7 @@ export default function Fabrica() {
         <div>
           <strong>{autorizando ? "Autorizando…" : `${autorizar.total} para autorizar`}</strong>
           <span className="fab-sub">{autorizando ? " Ya lo tocaste: está en proceso, no hace falta volver a tocarlo." : ` · ${autorizar.lote.length} proyecto${autorizar.lote.length === 1 ? "" : "s"}`}</span>
+          {avisoTope && <div className="fab-sub fab-tope">{avisoTope}</div>}
         </div>
         <button type="button" className="btn btn-primary" disabled={autorizando || enviando} onClick={autorizarTodo}>
           {autorizando ? <><span className="fab-spin" aria-hidden="true" /> Ejecutando…</> : "Autorizar todo"}

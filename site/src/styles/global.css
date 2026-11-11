@@ -318,3 +318,5 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .btn-actualizar:disabled { opacity: 1; cursor: progress; }
 .btn-actualizar.girando svg { animation: fab-giro 0.8s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .btn-actualizar.girando svg { animation: none; } }
+
+.fab-tope { margin-top: 0.25rem; color: var(--warn); }
