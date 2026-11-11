@@ -25,6 +25,7 @@ import {
   leerResumen,
   modoConexion,
   nuevaOrden,
+  paraAutorizar,
   textoConfirmacion,
   type AccionOrden,
   type Latido,
@@ -55,6 +56,8 @@ interface PorConfirmar {
   nombre: string;
   sensibilidad: string | null;
   itemId?: string;
+  /** «Autorizar todo» de todos los proyectos: una orden por cada uno. */
+  lote?: string[];
 }
 
 type Vista = "inicio" | "proyectos" | "pilares" | "ordenes" | "actividad" | "modelos";
@@ -215,6 +218,22 @@ export default function Fabrica() {
 
   async function confirmar() {
     if (!porConfirmar) return;
+    if (porConfirmar.lote) {
+      const ordenes = porConfirmar.lote.map((id) => nuevaOrden("aprobar_todo", { id }, Date.now(), email));
+      const filas = ordenes.flatMap((o) => (o.ok ? [o.orden] : []));
+      if (filas.length !== ordenes.length) {
+        setAviso("No se pudo armar la orden.");
+        setPorConfirmar(null);
+        return;
+      }
+      setEnviando(true);
+      const { error: e } = await fab().from("ordenes").insert(filas);
+      setEnviando(false);
+      setPorConfirmar(null);
+      setAviso(e ? `No se pudo crear la orden: ${e.message}` : "Listo: la PC las envía a los agentes.");
+      if (!e) void cargar();
+      return;
+    }
     const r = nuevaOrden(
       porConfirmar.accion,
       { id: porConfirmar.id, itemId: porConfirmar.itemId, confirmado: porConfirmar.accion === "reanudar_ejecutor" ? true : undefined },
@@ -292,6 +311,27 @@ export default function Fabrica() {
   const ordenesEnCola = ordenes.filter((o) => estadoVisible(o, ahora) === "pendiente").length;
   const CIRC = 2 * Math.PI * 52;
   const paraAprobar = proyectos.reduce((n, p) => n + leerColaTotal(estado[`cola:${p.id}`]?.valor) + leerSinResolver(estado[`cola:${p.id}`]?.valor).total, 0);
+
+  const abiertas = (id: string) => leerColaTotal(estado[`cola:${id}`]?.valor) + leerSinResolver(estado[`cola:${id}`]?.valor).total;
+  const autorizar = paraAutorizar(proyectos, abiertas);
+  const autorizarTodo = () =>
+    pedir({
+      accion: "aprobar_todo",
+      id: "*",
+      nombre: `${autorizar.total} tarea${autorizar.total === 1 ? "" : "s"} de ${autorizar.lote.length} proyecto${autorizar.lote.length === 1 ? "" : "s"}`,
+      sensibilidad: null,
+      lote: autorizar.lote.map((x) => x.id),
+    });
+  const bannerAutorizar =
+    autorizar.total > 0 && pc.ordenes ? (
+      <section className="card fab-autorizar" aria-label="Autorizar todo">
+        <div>
+          <strong>{autorizar.total} para autorizar</strong>
+          <span className="fab-sub"> · {autorizar.lote.length} proyecto{autorizar.lote.length === 1 ? "" : "s"}</span>
+        </div>
+        <button type="button" className="btn btn-primary" onClick={autorizarTodo}>Autorizar todo</button>
+      </section>
+    ) : null;
 
   const acciones = (p: (typeof proyectos)[number]) => {
     const ej = ejecutor.proyectos.find((x) => x.id === p.id);
@@ -402,9 +442,10 @@ export default function Fabrica() {
               <div><dt>Proyectos</dt><dd>{proyectos.length}</dd></div>
               <div><dt>Pendientes</dt><dd>{pendientesTotal}</dd></div>
               <div><dt>Hechas hoy</dt><dd>{hechasHoy}</dd></div>
-              <div><dt>En cola</dt><dd>{ordenesEnCola}</dd></div>
             </dl>
           </section>
+
+          {bannerAutorizar}
 
           {atencion.length > 0 && (
             <section className="card fab-atencion" aria-label="Atención">
@@ -446,14 +487,13 @@ export default function Fabrica() {
             {proyectos.length === 0 && <p style={{ margin: 0 }}>Todavía no hay proyectos publicados.</p>}
             <ul className="acc-lista">
               {proyectos.map((p) => {
-                const { ej, base, ae, cola, totalCola } = acciones(p);
+                const { ej, base, ae } = acciones(p);
                 return (
                   <li key={p.id}>
                     <div className="acc-cab">
                       <strong>{p.nombre}</strong>
                       <span className={`fab-nota ${p.grado ?? ""}`}>{p.nota !== null ? `${p.nota}${p.grado ? ` · ${p.grado}` : ""}` : "sin nota"}</span>
                       {ej?.pausado && <span className="fab-chip mal">pausado</span>}
-                      {totalCola > 0 && <button type="button" className="btn btn-primary btn-chico btn-aprobar" onClick={() => irA("proyectos")}>Revisar {totalCola}</button>}
                     </div>
                     <div className="fab-botones">
                       <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: ae.accion })}>{ae.label}</button>
@@ -491,6 +531,7 @@ export default function Fabrica() {
 
       {vista === "proyectos" && (
         <div className="fab-grid">
+      {bannerAutorizar}
       {!pc.ordenes && <p className="fab-sub fab-ancho">Las órdenes remotas están desactivadas en la PC.</p>}
       {pc.ordenes && modo === "vivo" && !pc.tablero && <p className="fab-sub fab-ancho">El tablero de la PC está cerrado: las órdenes esperan hasta que lo abras.</p>}
 
@@ -502,7 +543,6 @@ export default function Fabrica() {
       {proyectos.map((p) => {
         const ej = ejecutor.proyectos.find((x) => x.id === p.id);
         const cola = leerCola(estado[`cola:${p.id}`]?.valor);
-        const totalCola = leerColaTotal(estado[`cola:${p.id}`]?.valor);
         const sinRes = leerSinResolver(estado[`cola:${p.id}`]?.valor);
         const base = { id: p.id, nombre: p.nombre, sensibilidad: p.sensibilidad };
         const ae = accionEjecutor(ej);
@@ -522,7 +562,6 @@ export default function Fabrica() {
                   {ej.pausado ? "ejecutor pausado" : ej.habilitado ? "ejecutor activo" : "ejecutor apagado"}
                 </span>
               )}
-              {ej && <span className="fab-chip">{ej.hechasHoy} hecha{ej.hechasHoy === 1 ? "" : "s"} hoy</span>}
             </div>
             {ej?.pausado && <p className="fab-sub" style={{ margin: "0.4rem 0 0" }}>Motivo: {ej.pausado}</p>}
             {aud && (
@@ -566,45 +605,27 @@ export default function Fabrica() {
                 Armar plan
               </button>
             </div>
-            {cola.length > 0 && (
+            {(cola.length > 0 || sinRes.items.length > 0) && (
               <>
-                <div className="fab-sub">Tareas esperando{totalCola > cola.length ? ` (se muestran ${cola.length} de ${totalCola}; al aprobar o descartar aparecen las siguientes)` : ""}</div>
-                <ul className="fab-filas">
-                  {cola.map((t) => (
-                    <li key={t.id}>
-                      <span>
-                        {t.titulo} <span className="fab-sub">({t.sev})</span>
-                      </span>
-                      <div className="fab-fila-acc">
-                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
-                          Aprobar
-                        </button>
-                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
-                          Descartar
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {sinRes.items.length > 0 && (
-              <>
-                <div className="fab-sub">
-                  Sin resolver: requieren tu autorización o revisión{sinRes.total > sinRes.items.length ? ` (se muestran ${sinRes.items.length} de ${sinRes.total})` : ""}
+                <div className="fab-lista-cab">
+                  <span className="fab-sub">
+                    Para autorizar · {abiertas(p.id)}
+                    {abiertas(p.id) > cola.length + sinRes.items.length ? ` (se ven ${cola.length + sinRes.items.length}; al resolver aparecen las siguientes)` : ""}
+                  </span>
+                  {pc.ordenes && <button type="button" className="btn btn-primary btn-chico" onClick={() => pedir({ ...base, accion: "aprobar_todo" })}>Autorizar {abiertas(p.id)}</button>}
                 </div>
                 <ul className="fab-filas">
-                  {sinRes.items.map((t) => (
+                  {[...cola.map((t) => ({ ...t, intentos: 0, motivo: "" })), ...sinRes.items].map((t) => (
                     <li key={t.id}>
                       <span>
                         {t.titulo} <span className="fab-sub">({t.sev}{t.intentos ? `, ${t.intentos} intento${t.intentos === 1 ? "" : "s"}` : ""})</span>
                         {t.motivo && <span className="fab-sub fab-motivo">{t.motivo}</span>}
                       </span>
                       <div className="fab-fila-acc">
-                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
-                          Autorizar y reintentar
+                        <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: "aprobar_item", itemId: t.id })}>
+                          Autorizar
                         </button>
-                        <button type="button" className="btn btn-secondary" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
+                        <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: "descartar_item", itemId: t.id })}>
                           Descartar
                         </button>
                       </div>

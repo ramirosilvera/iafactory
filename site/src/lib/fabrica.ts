@@ -42,7 +42,7 @@ export function antiguedadTexto(desdeIso: string | null | undefined, ahoraMs: nu
 
 /* ───────────── órdenes ───────────── */
 
-export type AccionOrden = "pausar_ejecutor" | "reanudar_ejecutor" | "encolar" | "aprobar_item" | "descartar_item" | "auditar";
+export type AccionOrden = "pausar_ejecutor" | "reanudar_ejecutor" | "encolar" | "aprobar_item" | "aprobar_todo" | "descartar_item" | "auditar";
 export type EstadoOrden = "pendiente" | "tomada" | "hecha" | "rechazada" | "vencida" | "cancelada";
 
 export interface Orden {
@@ -61,6 +61,7 @@ export const VIGENCIA_MS: Record<AccionOrden, number> = {
   reanudar_ejecutor: 6 * 3_600_000,
   encolar: 24 * 3_600_000,
   aprobar_item: 24 * 3_600_000,
+  aprobar_todo: 6 * 3_600_000,
   descartar_item: 24 * 3_600_000,
   auditar: 24 * 3_600_000,
 };
@@ -257,6 +258,7 @@ export const ACCION_LABEL: Record<AccionOrden, string> = {
   reanudar_ejecutor: "Reanudar el ejecutor",
   encolar: "Armar plan de tareas",
   aprobar_item: "Aprobar tarea",
+  aprobar_todo: "Autorizar todas las tareas",
   descartar_item: "Descartar tarea",
   auditar: "Auditar ahora",
 };
@@ -287,6 +289,15 @@ export function nuevaOrden(
     p.confirmado = true;
   }
   return { ok: true, orden: { accion, params: p, vigencia_hasta: vigenciaHasta(accion, ahoraMs), creada_por: email } };
+}
+
+/** «Autorizar todo»: proyectos con tareas abiertas (por aprobar + sin resolver) y el total. Solo los que tienen algo. */
+export function paraAutorizar(
+  proyectos: { id: string; nombre: string }[],
+  abiertas: (id: string) => number,
+): { lote: { id: string; nombre: string; n: number }[]; total: number } {
+  const lote = proyectos.map((p) => ({ id: p.id, nombre: p.nombre, n: abiertas(p.id) })).filter((p) => p.n > 0 && ID_PROYECTO.test(p.id));
+  return { lote, total: lote.reduce((s, p) => s + p.n, 0) };
 }
 
 /** Texto de la confirmación en pantalla (ninguna orden sale sin que la persona la lea y acepte). */
