@@ -113,6 +113,7 @@ export default function Fabrica() {
   const [email, setEmail] = useState<string | null>(null);
   const [porConfirmar, setPorConfirmar] = useState<PorConfirmar | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [actualizando, setActualizando] = useState(false);
   const [aviso, setAviso] = useState("");
   const dialogoRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -155,6 +156,21 @@ export default function Fabrica() {
     setEventos((ev.data as Evento[]) ?? []);
     setOrdenes((o.data as Orden[]) ?? []);
   }, []);
+
+  // Botón «Actualizar»: vuelve a leer todo de la base (si el tiempo real se perdió, se ve lo último y no lo viejo).
+  const actualizar = useCallback(async () => {
+    if (actualizando) return;
+    setActualizando(true);
+    const t0 = Date.now();
+    try {
+      await cargar();
+      setAhora(Date.now());
+    } finally {
+      const falta = 700 - (Date.now() - t0); // que el giro se alcance a ver aunque responda rápido
+      if (falta > 0) await new Promise((r) => setTimeout(r, falta));
+      setActualizando(false);
+    }
+  }, [actualizando, cargar]);
 
   useEffect(() => {
     if (!SUPABASE_CONFIGURADO) return;
@@ -363,6 +379,12 @@ export default function Fabrica() {
             {modo === "apagada" && <>Sin conexión<span className="pill-tiempo"> · {antiguedadTexto(fotoDe, ahora)}</span></>}
             {modo === "sin_datos" && <>Sin datos todavía</>}
           </div>
+          <button type="button" className={`btn-menu btn-actualizar${actualizando ? " girando" : ""}`} aria-label={actualizando ? "Actualizando…" : "Actualizar"} title="Actualizar" disabled={actualizando} onClick={() => void actualizar()}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 11a8 8 0 1 0-2.3 5.7" />
+              <path d="M20 4v7h-7" />
+            </svg>
+          </button>
           <button type="button" className="btn-menu" aria-label="Menú" aria-expanded={menu} aria-controls="menu-principal" onClick={() => setMenu((m) => !m)}>
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               {menu ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
