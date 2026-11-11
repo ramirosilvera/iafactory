@@ -142,7 +142,6 @@ describe("órdenes nuevas", () => {
     for (const k of Object.keys(ACCION_LABEL)) expect(ACCION_LABEL[k as keyof typeof ACCION_LABEL].length).toBeGreaterThan(3);
     expect(textoConfirmacion("pausar_ejecutor", "X", "vivo", null)).toMatch(/en segundos/);
     expect(textoConfirmacion("pausar_ejecutor", "X", "apagada", null)).toMatch(/queda en cola/);
-    expect(textoConfirmacion("reanudar_ejecutor", "X", "vivo", "P3")).toMatch(/sensibles/);
   });
 });
 
@@ -216,21 +215,20 @@ describe("auditoría legible", () => {
   });
 });
 
-import { calcularPilares, leerPrivacidad, saludGeneral } from "./fabrica";
+import { calcularPilares, saludGeneral } from "./fabrica";
 describe("pilares", () => {
   const ej = { activo: true, pausadoProyectos: [], ultima: null, proyectos: [
     { id: "a", habilitado: true, pausado: null, esperando: 0, hechasHoy: 2, necesitaPersona: 0, sensibilidad: "P3" },
     { id: "b", habilitado: false, pausado: null, esperando: 0, hechasHoy: 0, necesitaPersona: 0, sensibilidad: null },
   ] } as never;
   const ps = [{ id: "a", nombre: "A", nota: 80, grado: "B", pendientes: 1, sensibilidad: "P3" }, { id: "b", nombre: "B", nota: 60, grado: "C", pendientes: 0, sensibilidad: null }];
-  it("devuelve 7 pilares con datos vivos", () => {
+  it("devuelve 6 pilares con datos vivos", () => {
     const r = calcularPilares(ps, ej, [{ ruta: "x", proveedor: "x", roles: [], usado: 1, limite: null, hasta: null }], [], 0, Date.now());
-    expect(r).toHaveLength(7);
+    expect(r).toHaveLength(6);
     expect(r[0].valor).toBe("1/2");
-    expect(r[4].valor).toBe("—");
     expect(r[3].valor).toBe("—");
-    expect(r[5].tono).toBe("ok");
-    expect(r[6].valor).toBe("—");
+    expect(r[4].tono).toBe("ok");
+    expect(r[5].valor).toBe("—");
   });
   it("salud general promedia notas", () => {
     expect(saludGeneral(ps)).toEqual({ nota: 70, grado: "C" });
@@ -241,17 +239,10 @@ describe("pilares", () => {
 describe("pilares medidos de verdad", () => {
   const base = { cuando: "x", nota: 90, grado: "A", conteos: { alta: 0, media: 0, baja: 0, info: 0 }, tendencia: { delta: 0, nuevos: 0, resueltos: 0 }, total: 0, hallazgos: [] };
   const ej = { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never;
-  it("5S cuenta hallazgos de orden y privacidad detecta exposición", () => {
-    const priv = leerPrivacidad({ leido: true, dias: 7, total: 4, enmascaradas: 2, locales: 1, expuestas: 1 });
-    const r = calcularPilares([], ej, [], [{ ...base, orden: 2 }, { ...base, orden: 0 }], 0, Date.now(), priv);
+  it("5S cuenta hallazgos de orden", () => {
+    const r = calcularPilares([], ej, [], [{ ...base, orden: 2 }, { ...base, orden: 0 }], 0, Date.now());
     expect(r[3].valor).toBe("2");
     expect(r[3].tono).toBe("warn");
-    expect(r[4].valor).toBe("3/4");
-    expect(r[4].tono).toBe("mal");
-  });
-  it("sin lectura del log, privacidad queda sin dato", () => {
-    expect(leerPrivacidad({ leido: false })).toBeNull();
-    expect(leerPrivacidad(undefined)).toBeNull();
   });
 });
 
@@ -262,12 +253,5 @@ describe("sesión y permisos (S7)", () => {
     expect(esErrorDePermiso("JWT expired")).toBe(false);
     expect(esErrorDePermiso("permission denied for schema factory")).toBe(true);
     expect(esSesionVencida("permission denied for schema factory")).toBe(false);
-  });
-  it("privacidad: intentos fallidos a la nube dejan el pilar en aviso", () => {
-    const ej = { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never;
-    const priv = leerPrivacidad({ leido: true, dias: 7, total: 2, enmascaradas: 1, locales: 1, expuestas: 0, fallidasNube: 3 });
-    const r = calcularPilares([], ej, [], [], 0, Date.now(), priv);
-    expect(r[4].tono).toBe("warn");
-    expect(r[4].detalle).toMatch(/3 intentos fallidos/);
   });
 });

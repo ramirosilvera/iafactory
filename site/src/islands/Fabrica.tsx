@@ -20,7 +20,6 @@ import {
   leerColaTotal,
   leerSinResolver,
   leerCuotas,
-  leerPrivacidad,
   leerEjecutor,
   leerPc,
   leerResumen,
@@ -62,7 +61,7 @@ type Vista = "inicio" | "proyectos" | "pilares" | "ordenes" | "actividad" | "mod
 const VISTAS: { id: Vista; nombre: string }[] = [
   { id: "inicio", nombre: "Inicio" },
   { id: "proyectos", nombre: "Proyectos" },
-  { id: "pilares", nombre: "Los 7 pilares" },
+  { id: "pilares", nombre: "Los 6 pilares" },
   { id: "ordenes", nombre: "Órdenes" },
   { id: "actividad", nombre: "Actividad" },
   { id: "modelos", nombre: "Modelos y cuotas" },
@@ -286,7 +285,7 @@ export default function Fabrica() {
   };
 
   const auditorias = proyectos.map((p) => leerAuditoria(estado[`auditoria:${p.id}`]?.valor)).filter((x): x is NonNullable<typeof x> => x !== null);
-  const pilares = calcularPilares(proyectos, ejecutor, cuotas, auditorias, atencion.length, ahora, leerPrivacidad(estado["privacidad"]?.valor));
+  const pilares = calcularPilares(proyectos, ejecutor, cuotas, auditorias, atencion.length, ahora);
   const salud = saludGeneral(proyectos);
   const pendientesTotal = proyectos.reduce((n, p) => n + p.pendientes, 0);
   const hechasHoy = ejecutor.proyectos.reduce((n, e) => n + e.hechasHoy, 0);
@@ -424,7 +423,7 @@ export default function Fabrica() {
 
           <section aria-labelledby="t-pilares" className="card tabla-card">
             <div className="tabla-cab">
-              <h2 id="t-pilares" className="sec-titulo">Los 7 pilares</h2>
+              <h2 id="t-pilares" className="sec-titulo">Los 6 pilares</h2>
               <button type="button" className="enlace" onClick={() => irA("pilares")}>Detalle</button>
             </div>
             <table className="tabla-pilares">
@@ -471,7 +470,7 @@ export default function Fabrica() {
 
       {vista === "pilares" && (
       <section aria-labelledby="t-pilares">
-        <h2 id="t-pilares" className="sec-titulo">Los 7 pilares, en detalle</h2>
+        <h2 id="t-pilares" className="sec-titulo">Los 6 pilares, en detalle</h2>
         <ul className="pilares">
           {pilares.map((pl) => (
             <li key={pl.clave} className={`pilar ${pl.tono}`}>
@@ -765,7 +764,6 @@ function IconoPilar({ clave }: { clave: string }) {
     eficiencia: "M13 2 4 14h7l-1 8 9-12h-7z",
     mejora: "M3 17l6-6 4 4 8-8m0 0h-5m5 0v5",
     "cinco-s": "M4 6h16M4 12h16M4 18h10",
-    privacidad: "M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6zM9.5 12l2 2 3.5-4",
     experiencia: "M12 21c-5-4-8-7-8-11a5 5 0 0 1 8-3.500A5 5 0 0 1 20 10c0 4-3 7-8 11z",
     calidad: "M12 3l2.5 5.5 6 .7-4.5 4 1.3 6L12 16.5 6.7 19.2 8 13.2 3.5 9.2l6-.7z",
   };
