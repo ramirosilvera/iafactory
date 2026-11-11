@@ -314,6 +314,9 @@ export default function Fabrica() {
 
   const abiertas = (id: string) => leerColaTotal(estado[`cola:${id}`]?.valor) + leerSinResolver(estado[`cola:${id}`]?.valor).total;
   const autorizar = paraAutorizar(proyectos, abiertas);
+  // «Autorizar todo» en curso: hay órdenes aprobar_todo sin terminar (esperando a la PC o ejecutándose).
+  const enCurso = new Set(ordenes.filter((o) => o.accion === "aprobar_todo" && ["pendiente", "tomada"].includes(estadoVisible(o, ahora))).map((o) => String(o.params?.id ?? "")));
+  const autorizando = enCurso.size > 0;
   const autorizarTodo = () =>
     pedir({
       accion: "aprobar_todo",
@@ -323,13 +326,15 @@ export default function Fabrica() {
       lote: autorizar.lote.map((x) => x.id),
     });
   const bannerAutorizar =
-    autorizar.total > 0 && pc.ordenes ? (
-      <section className="card fab-autorizar" aria-label="Autorizar todo">
+    (autorizar.total > 0 || autorizando) && pc.ordenes ? (
+      <section className={`card fab-autorizar${autorizando ? " fab-ocupado" : ""}`} aria-label="Autorizar todo" aria-live="polite">
         <div>
-          <strong>{autorizar.total} para autorizar</strong>
-          <span className="fab-sub"> · {autorizar.lote.length} proyecto{autorizar.lote.length === 1 ? "" : "s"}</span>
+          <strong>{autorizando ? "Autorizando…" : `${autorizar.total} para autorizar`}</strong>
+          <span className="fab-sub">{autorizando ? " Ya lo tocaste: está en proceso, no hace falta volver a tocarlo." : ` · ${autorizar.lote.length} proyecto${autorizar.lote.length === 1 ? "" : "s"}`}</span>
         </div>
-        <button type="button" className="btn btn-primary" onClick={autorizarTodo}>Autorizar todo</button>
+        <button type="button" className="btn btn-primary" disabled={autorizando || enviando} onClick={autorizarTodo}>
+          {autorizando ? <><span className="fab-spin" aria-hidden="true" /> Ejecutando…</> : "Autorizar todo"}
+        </button>
       </section>
     ) : null;
 
@@ -612,7 +617,11 @@ export default function Fabrica() {
                     Para autorizar · {abiertas(p.id)}
                     {abiertas(p.id) > cola.length + sinRes.items.length ? ` (se ven ${cola.length + sinRes.items.length}; al resolver aparecen las siguientes)` : ""}
                   </span>
-                  {pc.ordenes && <button type="button" className="btn btn-primary btn-chico" onClick={() => pedir({ ...base, accion: "aprobar_todo" })}>Autorizar {abiertas(p.id)}</button>}
+                  {pc.ordenes && (
+                    <button type="button" className={`btn btn-primary btn-chico${enCurso.has(p.id) ? " fab-ocupado-btn" : ""}`} disabled={enCurso.has(p.id) || enviando} onClick={() => pedir({ ...base, accion: "aprobar_todo" })}>
+                      {enCurso.has(p.id) ? <><span className="fab-spin" aria-hidden="true" /> Ejecutando…</> : `Autorizar ${abiertas(p.id)}`}
+                    </button>
+                  )}
                 </div>
                 <ul className="fab-filas">
                   {[...cola.map((t) => ({ ...t, intentos: 0, motivo: "" })), ...sinRes.items].map((t) => (
