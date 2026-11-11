@@ -14,6 +14,7 @@ import {
   estadoVisible,
   leerCola,
   leerCuotas,
+  leerSinResolver,
   proveedoresDe,
   leerEjecutor,
   leerPc,
@@ -74,6 +75,18 @@ describe("lectura tolerante de lo que publica la PC", () => {
       { id: "a", nombre: "a", nota: 90, grado: null, pendientes: 2, sensibilidad: null },
     ]);
   });
+  it("cola: tareas sin resolver con su motivo, sin ids inválidos", () => {
+    const v = { total: 1, items: [], enviadas: 2, sinResolver: { total: 3, items: [
+      { id: "aaaaaa", titulo: "t", sev: "media", cat: "x", motivo: "fallaron las pruebas", intentos: 3 },
+      { id: "../x", titulo: "malo" },
+    ] } };
+    const r = leerSinResolver(v);
+    expect(r.items).toEqual([{ id: "aaaaaa", titulo: "t", sev: "media", cat: "x", motivo: "fallaron las pruebas", intentos: 3 }]);
+    expect(r.total).toBe(3);
+    expect(r.enviadas).toBe(2);
+    expect(leerSinResolver(undefined)).toEqual({ items: [], total: 0, enviadas: 0 });
+  });
+
   it("cuotas por proveedor: un enfriamiento cuenta una sola vez aunque el proveedor tenga varios modelos", () => {
     const hasta = new Date(AHORA + 3600_000).toISOString();
     const c = leerCuotas({ rutas: [
