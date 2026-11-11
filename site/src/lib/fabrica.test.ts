@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCION_LABEL,
+  paraAutorizar,
   leerAuditoria,
   proximoPaso,
   accionEjecutor,
@@ -130,6 +131,19 @@ describe("órdenes nuevas", () => {
     expect(nuevaOrden("aprobar_item", { id: "p" }, AHORA, EMAIL).ok).toBe(false);
     expect(nuevaOrden("aprobar_item", { id: "p", itemId: "zz; drop" }, AHORA, EMAIL).ok).toBe(false);
     expect(nuevaOrden("borrar" as never, { id: "p" }, AHORA, EMAIL).ok).toBe(false);
+  });
+  it("autorizar todo: solo lleva el proyecto, dura 6 h y no pide itemId", () => {
+    const r = nuevaOrden("aprobar_todo", { id: "costos-rrhh" }, AHORA, EMAIL);
+    expect(r.ok && r.orden.params).toEqual({ id: "costos-rrhh" });
+    if (r.ok) expect(Date.parse(r.orden.vigencia_hasta) - AHORA).toBe(6 * 3_600_000);
+    expect(nuevaOrden("aprobar_todo", { id: "../x" }, AHORA, EMAIL).ok).toBe(false);
+  });
+  it("paraAutorizar junta solo los proyectos con tareas abiertas", () => {
+    const n: Record<string, number> = { a: 3, b: 0, c: 2 };
+    const r = paraAutorizar([{ id: "a", nombre: "A" }, { id: "b", nombre: "B" }, { id: "c", nombre: "C" }], (id) => n[id] ?? 0);
+    expect(r.lote.map((p) => p.id)).toEqual(["a", "c"]);
+    expect(r.total).toBe(5);
+    expect(paraAutorizar([], () => 0)).toEqual({ lote: [], total: 0 });
   });
   it("aprobar lleva el itemId; reanudar exige confirmación y la incluye", () => {
     const a = nuevaOrden("aprobar_item", { id: "p", itemId: "0e44896f" }, AHORA, null);

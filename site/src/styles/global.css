@@ -300,3 +300,8 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .modelos-der { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .modelos-der .fab-chip { margin: 0; }
 .fab-motivo { display: block; margin-top: 0.15rem; word-break: break-word; }
+
+/* Autorizar todo: una barra mínima, una sola acción */
+.fab-autorizar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0.9rem; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.fab-autorizar strong { font-size: 1rem; }
+.fab-lista-cab { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.6rem; }
