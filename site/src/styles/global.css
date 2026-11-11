@@ -305,3 +305,11 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .fab-autorizar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0.9rem; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .fab-autorizar strong { font-size: 1rem; }
 .fab-lista-cab { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.6rem; }
+
+/* Autorizar todo en curso: otro color, bloqueado y con aviso (no hace falta volver a tocarlo) */
+.fab-autorizar.fab-ocupado { border-color: var(--warn, #d99a1b); background: color-mix(in srgb, var(--warn, #d99a1b) 12%, var(--surface)); }
+.fab-autorizar.fab-ocupado .btn-primary, .btn-primary.fab-ocupado-btn { background: var(--warn, #d99a1b); color: #1d1300; }
+.fab-autorizar .btn:disabled, .fab-ocupado-btn:disabled { opacity: 0.85; cursor: progress; }
+.fab-spin { display: inline-block; width: 0.8em; height: 0.8em; margin-right: 0.35em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; vertical-align: -0.1em; animation: fab-giro 0.8s linear infinite; }
+@keyframes fab-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .fab-spin { animation: none; } }
