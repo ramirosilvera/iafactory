@@ -427,7 +427,7 @@ export default function Fabrica() {
               <button type="button" className="enlace" onClick={() => irA("pilares")}>Detalle</button>
             </div>
             <table className="tabla-pilares">
-              <caption className="solo-lectores">Resumen de los 7 pilares</caption>
+              <caption className="solo-lectores">Resumen de los 6 pilares</caption>
               <thead className="solo-lectores"><tr><th>Pilar</th><th>Valor</th><th>Estado</th></tr></thead>
               <tbody>
                 {pilares.map((pl) => (
