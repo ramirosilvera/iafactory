@@ -13,7 +13,7 @@
 // podía quedar cacheada para siempre. Subir la versión fuerza a `activate`
 // (más abajo) a borrar cualquier caché vieja -- incluida una que ya tenga
 // un error de ese tipo pegado -- en vez de dejarlo ahí indefinidamente.
-const CACHE = "iafactory-shell-v1";
+const CACHE = "iafactory-shell-v2";
 
 const STATIC_ASSET = /\.(css|js|mjs|png|svg|ico|webp|jpg|jpeg|woff2?)(\?|$)/i;
 
