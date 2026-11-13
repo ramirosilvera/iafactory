@@ -438,7 +438,13 @@ export interface Pilar {
   unidad: string;
   detalle: string;
   tono: TonoPilar;
+  /** Madurez 0–3, la misma escala para todos los pilares: 0 sin datos/inactivo · 1 funciona · 2 sano · 3 se mejora solo y se mide. */
+  nivel: 0 | 1 | 2 | 3;
+  /** Qué falta para el próximo nivel (vacío en el 3). */
+  proximo: string;
 }
+
+export const NIVELES = ["Sin datos", "Funciona", "Sano", "Aprende"] as const;
 
 export function calcularPilares(
   proyectos: ResumenProyecto[],
@@ -467,30 +473,40 @@ export function calcularPilares(
       valor: `${activos}/${ejs.length}`, unidad: s(activos, "ejecutor activo", "ejecutores activos"),
       detalle: `${hechas} ${s(hechas, "tarea hecha", "tareas hechas")} hoy · ${auditorias.length ? `${delta > 0 ? "+" : ""}${delta} pts vs. auditoría anterior` : "sin auditorías aún"} (${nuevos} ${s(nuevos, "hallazgo nuevo", "hallazgos nuevos")}, ${resueltos} ${s(resueltos, "resuelto", "resueltos")}). Mejora sola, mide el resultado y, si algo falla, revierte y frena.`,
       tono: pausados > 0 || (auditorias.length > 0 && delta < 0) ? "warn" : activos > 0 ? "ok" : "neutro",
+      nivel: (activos === 0 ? 0 : pausados > 0 || hechas === 0 ? 1 : auditorias.length && delta >= 0 && resueltos >= nuevos ? 3 : 2) as Pilar["nivel"],
+      proximo: activos === 0 ? "Encender al menos un ejecutor." : pausados > 0 ? "Destrabar el proyecto pausado." : hechas === 0 ? "Que el ejecutor complete una tarea hoy." : delta < 0 || resueltos < nuevos ? "Resolver más hallazgos de los que aparecen." : "",
     },
     {
       n: 2, clave: "eficiencia", nombre: "Eficiencia", lema: "Costo cero",
       valor: provs.length ? `${conCupo}/${provs.length}` : "—", unidad: "proveedores con cupo",
       detalle: "Primero rutas gratuitas; lo pago nunca es el camino por defecto.",
       tono: provs.length === 0 ? "neutro" : conCupo === 0 ? "mal" : conCupo < provs.length ? "warn" : "ok",
+      nivel: (provs.length === 0 ? 0 : conCupo === 0 ? 1 : conCupo < provs.length ? 2 : hechas > 0 ? 3 : 2) as Pilar["nivel"],
+      proximo: provs.length === 0 ? "Esperar datos de cuota de la PC." : conCupo === 0 ? "Esperar que se libere algún proveedor." : conCupo < provs.length ? "Que todos los proveedores tengan cupo." : hechas === 0 ? "Usar el cupo libre en trabajo real." : "",
     },
     {
       n: 3, clave: "cinco-s", nombre: "Metodología 5S", lema: "Orden y limpieza",
       valor: ordenConDato.length ? String(ordenTotal) : "—", unidad: ordenConDato.length ? s(ordenTotal, "hallazgo de orden abierto", "hallazgos de orden abiertos") : "esperando datos de la PC",
       detalle: "Cuenta respaldos .bak y scripts sueltos en la raíz de cada proyecto, según la última auditoría.",
       tono: !ordenConDato.length ? "neutro" : ordenTotal > 0 ? "warn" : "ok",
+      nivel: (!ordenConDato.length ? 0 : ordenTotal > 10 ? 1 : ordenTotal > 0 ? 2 : 3) as Pilar["nivel"],
+      proximo: !ordenConDato.length ? "Esperar la auditoría de la PC." : ordenTotal > 10 ? "Bajar a 10 o menos hallazgos de orden." : ordenTotal > 0 ? "Llegar a cero hallazgos de orden." : "",
     },
     {
       n: 4, clave: "experiencia", nombre: "Experiencia", lema: "Simple e intuitiva",
       valor: paraMirar === 0 ? "Todo en orden" : String(paraMirar), unidad: paraMirar === 0 ? "nada para mirar" : s(paraMirar, "cosa para mirar", "cosas para mirar"),
       detalle: "Cada acción en un paso, con confirmación clara antes de actuar.",
       tono: paraMirar === 0 ? "ok" : "warn",
+      nivel: (paraMirar === 0 ? 3 : paraMirar <= 3 ? 2 : 1) as Pilar["nivel"],
+      proximo: paraMirar === 0 ? "" : paraMirar <= 3 ? "Dejar nada para mirar." : "Bajar a 3 o menos cosas para mirar.",
     },
     {
       n: 5, clave: "calidad", nombre: "Calidad", lema: "Lo crítico, auditado solo",
       valor: auditorias.length ? String(altas) : "—", unidad: s(altas, "hallazgo alto abierto", "hallazgos altos abiertos"),
       detalle: "La fábrica detecta sola el código sensible y lo audita cada día.",
       tono: !auditorias.length ? "neutro" : altas > 0 ? "mal" : "ok",
+      nivel: (!auditorias.length ? 0 : altas > 0 ? 1 : auditorias.every((a) => a.conteos.media === 0) ? 3 : 2) as Pilar["nivel"],
+      proximo: !auditorias.length ? "Esperar la primera auditoría." : altas > 0 ? "Cerrar los hallazgos altos." : auditorias.every((a) => a.conteos.media === 0) ? "" : "Cerrar los hallazgos medios.",
     },
   ];
 }

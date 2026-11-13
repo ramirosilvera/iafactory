@@ -251,6 +251,22 @@ describe("pilares", () => {
   });
 });
 
+describe("nivel por pilar (misma escala 0–3)", () => {
+  const base = { cuando: "x", nota: 90, grado: "A", conteos: { alta: 0, media: 0, baja: 0, info: 0 }, tendencia: { delta: 1, nuevos: 0, resueltos: 2 }, total: 0, hallazgos: [], orden: 0 };
+  const ej = (hechas: number) => ({ activo: true, pausadoProyectos: [], ultima: null, proyectos: [{ id: "a", habilitado: true, pausado: null, esperando: 0, hechasHoy: hechas, necesitaPersona: 0, sensibilidad: null }] }) as never;
+  it("todo en orden llega al nivel 3 y no pide nada más", () => {
+    const r = calcularPilares([], ej(2), [{ ruta: "x", proveedor: "x", roles: [], usado: 1, limite: null, hasta: null }], [base as never], 0, Date.now());
+    expect(r.map((p) => p.nivel)).toEqual([3, 3, 3, 3, 3]);
+    expect(r.every((p) => p.proximo === "")).toBe(true);
+  });
+  it("sin datos queda en 0 y dice qué falta", () => {
+    const r = calcularPilares([], { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never, [], [], 5, Date.now());
+    expect(r[0].nivel).toBe(0);
+    expect(r[0].proximo).not.toBe("");
+    expect(r[3].nivel).toBe(1);
+  });
+});
+
 describe("pilares medidos de verdad", () => {
   const base = { cuando: "x", nota: 90, grado: "A", conteos: { alta: 0, media: 0, baja: 0, info: 0 }, tendencia: { delta: 0, nuevos: 0, resueltos: 0 }, total: 0, hallazgos: [] };
   const ej = { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never;

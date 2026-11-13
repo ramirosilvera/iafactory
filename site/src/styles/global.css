@@ -320,3 +320,5 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 @media (prefers-reduced-motion: reduce) { .btn-actualizar.girando svg { animation: none; } }
 
 .fab-tope { margin-top: 0.25rem; color: var(--warn); }
+.pilar-nivel { margin: 0.4rem 0 0; font-size: 0.85rem; font-weight: 600; }
+.pilar-niv { color: var(--text-muted); font-weight: 700; }

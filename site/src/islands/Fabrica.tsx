@@ -24,6 +24,7 @@ import {
   leerPc,
   leerResumen,
   modoConexion,
+  NIVELES,
   nuevaOrden,
   paraAutorizar,
   textoConfirmacion,
@@ -506,7 +507,7 @@ export default function Fabrica() {
               <tbody>
                 {pilares.map((pl) => (
                   <tr key={pl.clave} className={pl.tono}>
-                    <td><span className="pilar-num">{pl.n}</span> {pl.nombre}</td>
+                    <td><span className="pilar-num">{pl.n}</span> {pl.nombre} <small className="pilar-niv">N{pl.nivel}</small></td>
                     <td className="tabla-valor"><strong>{pl.valor}</strong> <span>{pl.unidad}</span></td>
                     <td><span className={`semaforo ${pl.tono}`} role="img" aria-label={pl.tono === "ok" ? "bien" : pl.tono === "warn" ? "atención" : pl.tono === "mal" ? "mal" : "sin dato"} /></td>
                   </tr>
@@ -555,6 +556,7 @@ export default function Fabrica() {
               <p className="pilar-lema">{pl.lema}</p>
               <p className="pilar-valor"><strong>{pl.valor}</strong> <span>{pl.unidad}</span></p>
               <p className="pilar-detalle">{pl.detalle}</p>
+              <p className="pilar-nivel">Nivel {pl.nivel} de 3 · {NIVELES[pl.nivel]}{pl.proximo ? ` — siguiente: ${pl.proximo}` : ""}</p>
             </li>
           ))}
         </ul>
