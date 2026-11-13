@@ -236,13 +236,14 @@ describe("pilares", () => {
     { id: "b", habilitado: false, pausado: null, esperando: 0, hechasHoy: 0, necesitaPersona: 0, sensibilidad: null },
   ] } as never;
   const ps = [{ id: "a", nombre: "A", nota: 80, grado: "B", pendientes: 1, sensibilidad: "P3" }, { id: "b", nombre: "B", nota: 60, grado: "C", pendientes: 0, sensibilidad: null }];
-  it("devuelve 6 pilares con datos vivos", () => {
+  it("devuelve 5 pilares con datos vivos", () => {
     const r = calcularPilares(ps, ej, [{ ruta: "x", proveedor: "x", roles: [], usado: 1, limite: null, hasta: null }], [], 0, Date.now());
-    expect(r).toHaveLength(6);
+    expect(r).toHaveLength(5);
     expect(r[0].valor).toBe("1/2");
-    expect(r[3].valor).toBe("—");
-    expect(r[4].tono).toBe("ok");
-    expect(r[5].valor).toBe("—");
+    expect(r[2].valor).toBe("—");
+    expect(r[3].tono).toBe("ok");
+    expect(r[4].valor).toBe("—");
+    expect(r[0].nombre).toBe("Autonomía y mejora continua");
   });
   it("salud general promedia notas", () => {
     expect(saludGeneral(ps)).toEqual({ nota: 70, grado: "C" });
@@ -255,8 +256,8 @@ describe("pilares medidos de verdad", () => {
   const ej = { activo: false, pausadoProyectos: [], ultima: null, proyectos: [] } as never;
   it("5S cuenta hallazgos de orden", () => {
     const r = calcularPilares([], ej, [], [{ ...base, orden: 2 }, { ...base, orden: 0 }], 0, Date.now());
-    expect(r[3].valor).toBe("2");
-    expect(r[3].tono).toBe("warn");
+    expect(r[2].valor).toBe("2");
+    expect(r[2].tono).toBe("warn");
   });
 });
 

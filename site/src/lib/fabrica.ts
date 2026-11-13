@@ -427,7 +427,7 @@ export function proximoPaso(a: Auditoria | null, tareasEsperando: number, necesi
 
 export const SEV_LABEL: Record<string, string> = { alta: "Alta", media: "Media", baja: "Baja", info: "Info" };
 
-// ───────── Los 6 pilares de la fábrica, con el dato vivo que los respalda ─────────
+// ───────── Los 5 pilares de la fábrica, con el dato vivo que los respalda ─────────
 export type TonoPilar = "ok" | "warn" | "mal" | "neutro";
 export interface Pilar {
   n: number;
@@ -463,10 +463,10 @@ export function calcularPilares(
   const s = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
   return [
     {
-      n: 1, clave: "autonomia", nombre: "Autonomía", lema: "Automática y reversible",
+      n: 1, clave: "autonomia", nombre: "Autonomía y mejora continua", lema: "Automática, reversible y medida",
       valor: `${activos}/${ejs.length}`, unidad: s(activos, "ejecutor activo", "ejecutores activos"),
-      detalle: `${hechas} ${s(hechas, "tarea hecha", "tareas hechas")} hoy. Si algo falla, revierte solo y frena.`,
-      tono: pausados > 0 ? "warn" : activos > 0 ? "ok" : "neutro",
+      detalle: `${hechas} ${s(hechas, "tarea hecha", "tareas hechas")} hoy · ${auditorias.length ? `${delta > 0 ? "+" : ""}${delta} pts vs. auditoría anterior` : "sin auditorías aún"} (${nuevos} ${s(nuevos, "hallazgo nuevo", "hallazgos nuevos")}, ${resueltos} ${s(resueltos, "resuelto", "resueltos")}). Mejora sola, mide el resultado y, si algo falla, revierte y frena.`,
+      tono: pausados > 0 || (auditorias.length > 0 && delta < 0) ? "warn" : activos > 0 ? "ok" : "neutro",
     },
     {
       n: 2, clave: "eficiencia", nombre: "Eficiencia", lema: "Costo cero",
@@ -475,25 +475,19 @@ export function calcularPilares(
       tono: provs.length === 0 ? "neutro" : conCupo === 0 ? "mal" : conCupo < provs.length ? "warn" : "ok",
     },
     {
-      n: 3, clave: "mejora", nombre: "Mejora continua", lema: "Medir antes de decidir",
-      valor: auditorias.length ? `${delta > 0 ? "+" : ""}${delta}` : "—", unidad: "puntos vs. auditoría anterior",
-      detalle: `${nuevos} ${s(nuevos, "hallazgo nuevo", "hallazgos nuevos")} · ${resueltos} ${s(resueltos, "resuelto", "resueltos")}. Se decide con datos, no con opiniones.`,
-      tono: !auditorias.length ? "neutro" : delta < 0 ? "warn" : "ok",
-    },
-    {
-      n: 4, clave: "cinco-s", nombre: "Metodología 5S", lema: "Orden y limpieza",
+      n: 3, clave: "cinco-s", nombre: "Metodología 5S", lema: "Orden y limpieza",
       valor: ordenConDato.length ? String(ordenTotal) : "—", unidad: ordenConDato.length ? s(ordenTotal, "hallazgo de orden abierto", "hallazgos de orden abiertos") : "esperando datos de la PC",
       detalle: "Cuenta respaldos .bak y scripts sueltos en la raíz de cada proyecto, según la última auditoría.",
       tono: !ordenConDato.length ? "neutro" : ordenTotal > 0 ? "warn" : "ok",
     },
     {
-      n: 5, clave: "experiencia", nombre: "Experiencia", lema: "Simple e intuitiva",
+      n: 4, clave: "experiencia", nombre: "Experiencia", lema: "Simple e intuitiva",
       valor: paraMirar === 0 ? "Todo en orden" : String(paraMirar), unidad: paraMirar === 0 ? "nada para mirar" : s(paraMirar, "cosa para mirar", "cosas para mirar"),
       detalle: "Cada acción en un paso, con confirmación clara antes de actuar.",
       tono: paraMirar === 0 ? "ok" : "warn",
     },
     {
-      n: 6, clave: "calidad", nombre: "Calidad", lema: "Lo crítico, auditado solo",
+      n: 5, clave: "calidad", nombre: "Calidad", lema: "Lo crítico, auditado solo",
       valor: auditorias.length ? String(altas) : "—", unidad: s(altas, "hallazgo alto abierto", "hallazgos altos abiertos"),
       detalle: "La fábrica detecta sola el código sensible y lo audita cada día.",
       tono: !auditorias.length ? "neutro" : altas > 0 ? "mal" : "ok",

@@ -64,7 +64,7 @@ type Vista = "inicio" | "proyectos" | "pilares" | "ordenes" | "actividad" | "mod
 const VISTAS: { id: Vista; nombre: string }[] = [
   { id: "inicio", nombre: "Inicio" },
   { id: "proyectos", nombre: "Proyectos" },
-  { id: "pilares", nombre: "Los 6 pilares" },
+  { id: "pilares", nombre: "Los 5 pilares" },
   { id: "ordenes", nombre: "Órdenes" },
   { id: "actividad", nombre: "Actividad" },
   { id: "modelos", nombre: "Modelos y cuotas" },
@@ -497,11 +497,11 @@ export default function Fabrica() {
 
           <section aria-labelledby="t-pilares" className="card tabla-card">
             <div className="tabla-cab">
-              <h2 id="t-pilares" className="sec-titulo">Los 6 pilares</h2>
+              <h2 id="t-pilares" className="sec-titulo">Los 5 pilares</h2>
               <button type="button" className="enlace" onClick={() => irA("pilares")}>Detalle</button>
             </div>
             <table className="tabla-pilares">
-              <caption className="solo-lectores">Resumen de los 6 pilares</caption>
+              <caption className="solo-lectores">Resumen de los 5 pilares</caption>
               <thead className="solo-lectores"><tr><th>Pilar</th><th>Valor</th><th>Estado</th></tr></thead>
               <tbody>
                 {pilares.map((pl) => (
@@ -543,7 +543,7 @@ export default function Fabrica() {
 
       {vista === "pilares" && (
       <section aria-labelledby="t-pilares">
-        <h2 id="t-pilares" className="sec-titulo">Los 6 pilares, en detalle</h2>
+        <h2 id="t-pilares" className="sec-titulo">Los 5 pilares, en detalle</h2>
         <ul className="pilares">
           {pilares.map((pl) => (
             <li key={pl.clave} className={`pilar ${pl.tono}`}>
@@ -820,7 +820,6 @@ function IconoPilar({ clave }: { clave: string }) {
   const caminos: Record<string, string> = {
     autonomia: "M12 3v3m0 12v3M3 12h3m12 0h3M7 7l2 2m6 6 2 2M17 7l-2 2m-6 6-2 2M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
     eficiencia: "M13 2 4 14h7l-1 8 9-12h-7z",
-    mejora: "M3 17l6-6 4 4 8-8m0 0h-5m5 0v5",
     "cinco-s": "M4 6h16M4 12h16M4 18h10",
     experiencia: "M12 21c-5-4-8-7-8-11a5 5 0 0 1 8-3.500A5 5 0 0 1 20 10c0 4-3 7-8 11z",
     calidad: "M12 3l2.5 5.5 6 .7-4.5 4 1.3 6L12 16.5 6.7 19.2 8 13.2 3.5 9.2l6-.7z",
