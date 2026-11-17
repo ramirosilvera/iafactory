@@ -322,3 +322,15 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .fab-tope { margin-top: 0.25rem; color: var(--warn); }
 .pilar-nivel { margin: 0.4rem 0 0; font-size: 0.85rem; font-weight: 600; }
 .pilar-niv { color: var(--text-muted); font-weight: 700; }
+
+/* Barra inferior: lo principal al alcance del pulgar */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+.tab { position: relative; display: grid; justify-items: center; align-content: center; gap: 2px; min-height: 58px; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer; }
+.tab[aria-current="page"] { color: var(--accent-strong); }
+.tab:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: -4px; }
+.tab-badge { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; padding: 0 0.3rem; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.68rem; line-height: 18px; text-align: center; }
+.menu-panel { top: auto; bottom: calc(66px + env(safe-area-inset-bottom)); }
+body { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+.btn-accion { display: grid; justify-items: center; gap: 2px; min-width: 64px; min-height: 52px; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; }
+.btn-accion:hover { border-color: var(--accent); }
+.pilar-mas summary { cursor: pointer; font-size: 0.85rem; color: var(--text-muted); min-height: 32px; }

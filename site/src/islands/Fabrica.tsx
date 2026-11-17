@@ -61,6 +61,12 @@ interface PorConfirmar {
   lote?: string[];
 }
 
+const ICONO_VISTA: Record<string, string> = {
+  inicio: "M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z",
+  proyectos: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  ordenes: "M5 6h14M5 12h14M5 18h9",
+  pilares: "M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.5 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z",
+};
 type Vista = "inicio" | "proyectos" | "pilares" | "ordenes" | "actividad" | "modelos";
 const VISTAS: { id: Vista; nombre: string }[] = [
   { id: "inicio", nombre: "Inicio" },
@@ -70,6 +76,7 @@ const VISTAS: { id: Vista; nombre: string }[] = [
   { id: "actividad", nombre: "Actividad" },
   { id: "modelos", nombre: "Modelos y cuotas" },
 ];
+const TABS: Vista[] = ["inicio", "proyectos", "ordenes", "pilares"];
 const vistaDeHash = (): Vista => {
   try {
     const h = window.location.hash.replace("#", "");
@@ -392,11 +399,6 @@ export default function Fabrica() {
               <path d="M20 4v7h-7" />
             </svg>
           </button>
-          <button type="button" className="btn-menu" aria-label="Menú" aria-expanded={menu} aria-controls="menu-principal" onClick={() => setMenu((m) => !m)}>
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              {menu ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
-            </svg>
-          </button>
         </div>
       </header>
 
@@ -405,7 +407,7 @@ export default function Fabrica() {
           <div className="menu-fondo" onClick={() => setMenu(false)} aria-hidden="true" />
           <nav id="menu-principal" className="menu-panel" aria-label="Secciones">
             <ul>
-              {VISTAS.map((v) => (
+              {VISTAS.filter((v) => !TABS.includes(v.id)).map((v) => (
                 <li key={v.id}>
                   <button type="button" aria-current={vista === v.id ? "page" : undefined} onClick={() => irA(v.id)}>
                     {v.nombre}
@@ -424,6 +426,24 @@ export default function Fabrica() {
           </nav>
         </>
       )}
+
+      <nav className="tabbar" aria-label="Secciones principales">
+        {TABS.map((id) => {
+          const v = VISTAS.find((x) => x.id === id)!;
+          const n = id === "ordenes" ? ordenesEnCola : id === "proyectos" ? paraAprobar : 0;
+          return (
+            <button key={id} type="button" className="tab" aria-current={vista === id && !menu ? "page" : undefined} onClick={() => irA(id)}>
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONO_VISTA[id]} /></svg>
+              <span>{id === "pilares" ? "Pilares" : v.nombre}</span>
+              {n > 0 && <span className="tab-badge" aria-label={`${n} pendientes`}>{n}</span>}
+            </button>
+          );
+        })}
+        <button type="button" className="tab" aria-expanded={menu} aria-controls="menu-principal" aria-current={menu || vista === "actividad" || vista === "modelos" ? "page" : undefined} onClick={() => setMenu((m) => !m)}>
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+          <span>Más</span>
+        </button>
+      </nav>
 
       {refrescoFallo && (
         <p role="alert" className="fab-sub">
@@ -530,9 +550,18 @@ export default function Fabrica() {
                       {ej?.pausado && <span className="fab-chip mal">pausado</span>}
                     </div>
                     <div className="fab-botones">
-                      <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: ae.accion })}>{ae.label}</button>
-                      <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: "auditar" })}>Auditar</button>
-                      <button type="button" className="btn btn-secondary btn-chico" onClick={() => pedir({ ...base, accion: "encolar" })}>Armar plan</button>
+                      <button type="button" className="btn-accion" title={ae.label} aria-label={ae.label} onClick={() => pedir({ ...base, accion: ae.accion })}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{/paus/i.test(ae.label) ? <path d="M8 5v14M16 5v14" /> : <path d="M7 4l13 8-13 8z" />}</svg>
+                        <span>{/paus/i.test(ae.label) ? "Pausar" : "Reanudar"}</span>
+                      </button>
+                      <button type="button" className="btn-accion" title="Auditar ahora" aria-label="Auditar ahora" onClick={() => pedir({ ...base, accion: "auditar" })}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="m20 20-4.2-4.2" /></svg>
+                        <span>Auditar</span>
+                      </button>
+                      <button type="button" className="btn-accion" title="Armar plan" aria-label="Armar plan" onClick={() => pedir({ ...base, accion: "encolar" })}>
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>
+                        <span>Plan</span>
+                      </button>
                     </div>
                   </li>
                 );
@@ -555,7 +584,7 @@ export default function Fabrica() {
               <h3>{pl.nombre}</h3>
               <p className="pilar-lema">{pl.lema}</p>
               <p className="pilar-valor"><strong>{pl.valor}</strong> <span>{pl.unidad}</span></p>
-              <p className="pilar-detalle">{pl.detalle}</p>
+              <details className="pilar-mas"><summary>Detalle</summary><p className="pilar-detalle">{pl.detalle}</p></details>
               <p className="pilar-nivel">Nivel {pl.nivel} de 3 · {NIVELES[pl.nivel]}{pl.proximo ? ` — siguiente: ${pl.proximo}` : ""}</p>
             </li>
           ))}
