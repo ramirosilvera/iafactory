@@ -271,7 +271,10 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .app-top { flex-wrap: nowrap; }
 .app-top .app-der { flex-wrap: nowrap; min-width: 0; }
 .pill-estado { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tabla-pilares td:first-child { white-space: nowrap; }
+.tabla-pilares { table-layout: auto; }
+.tabla-pilares td:first-child { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+.tabla-pilares .tabla-valor { padding-left: 0.5rem; }
+.tabla-card { overflow: hidden; }
 .tabla-pilares .pilar-num { margin-right: 0.35rem; }
 .acc-lista .fab-botones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .acc-lista .btn { padding-left: 0.4rem; padding-right: 0.4rem; font-size: 0.82rem; }
