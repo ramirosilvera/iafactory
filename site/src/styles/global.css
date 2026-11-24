@@ -271,16 +271,19 @@ body.tiene-aviso-actualizacion { padding-top: calc(1rem + max(env(safe-area-inse
 .app-top { flex-wrap: nowrap; }
 .app-top .app-der { flex-wrap: nowrap; min-width: 0; }
 .pill-estado { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tabla-pilares td:first-child { white-space: nowrap; }
+.tabla-pilares { table-layout: auto; }
+.tabla-pilares td:first-child { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; padding-left: 1.8rem; text-indent: -1.55rem; } /* sangría francesa: la 2.ª línea queda bajo el nombre */
+.tabla-pilares .tabla-valor { padding-left: 0.5rem; }
+.tabla-card { overflow: hidden; }
 .tabla-pilares .pilar-num { margin-right: 0.35rem; }
 .acc-lista .fab-botones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.acc-lista .btn { padding-left: 0.4rem; padding-right: 0.4rem; font-size: 0.82rem; }
+.acc-lista .btn { padding-left: 0.4rem; padding-right: 0.4rem; font-size: 0.82rem; line-height: 1.15; min-height: 2.9rem; display: inline-flex; align-items: center; justify-content: center; text-align: center; } /* los 3 botones siempre de la misma altura */
 .acc-cab .btn-aprobar { margin-left: auto; }
 @media (max-width: 560px) {
   .app-marca span { display: none; }
   .app-marca strong { font-size: 1rem; }
   .hero-chico { grid-template-columns: auto 1fr; justify-items: start; text-align: left; gap: 0.6rem 0.9rem; }
-  .hero-chico .hero-kpis { grid-template-columns: repeat(4, 1fr); gap: 0.35rem; }
+  .hero-chico .hero-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; grid-column: 1 / -1; }
   .hero-chico .hero-kpis > div { padding: 0.35rem 0.4rem; }
   .hero-chico .hero-kpis dt { font-size: 0.66rem; }
   .hero-chico .hero-kpis dd { font-size: 1.05rem; }
